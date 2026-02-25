@@ -199,7 +199,15 @@ async def openai_compatible_endpoint(request: Request):
         yield f"data: {json.dumps(end_chunk, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(stream_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no" # Nginx/K8s Ingress의 SSE 버퍼링 강제 비활성화
+        }
+    )
 
 if __name__ == "__main__":
     uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
