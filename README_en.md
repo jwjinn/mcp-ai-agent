@@ -14,10 +14,7 @@ Notably, it supports a dual LLM environment: a **Thinking Model** for deep reaso
 
 ## Architecture
 
-The project is divided into two primary components based on their use cases:
-
-- **`mcp-cli-agent/`**: A lightweight Python CLI environment for interacting directly with the agent in the terminal, allowing for immediate testing of tool or prompt changes.
-- **`mcp-api-agent/`**: A FastAPI-based backend application designed for production environments to communicate with remote Web UIs or other services. It supports Server-Sent Events (SSE) streaming for monitoring dashboards and is fully ready for Docker/Kubernetes deployment.
+This project primarily provides a FastAPI-based backend application (`mcp-api-agent/`) designed for production environments to communicate with remote Web UIs or other services. It supports Server-Sent Events (SSE) streaming for monitoring dashboards and is fully ready for Docker/Kubernetes deployment.
 
 ### Supported MCP Servers
 The agent dynamically connects and operates with several MCP servers as follows:
@@ -39,16 +36,13 @@ To run the agent directly in an open-source environment, you will need:
 After cloning the repository, replace the IP addresses and API Keys in the provided template files to match your environment.
 
 ```bash
-# Copy CLI version configuration
-cp mcp-cli-agent/config.example.py mcp-cli-agent/config.py
-
 # Copy FastAPI version configuration
 cp mcp-api-agent/config.example.py mcp-api-agent/config.py
 cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 ```
 
 ### 2. Local PC Testing
-The fastest way to verify the agent's workflow directly from your CLI. This method is ideal when actively modifying and testing source code.
+The fastest way to verify the agent's API server locally.
 
 1. **Set up a Python Virtual Environment (e.g., Conda) and Install Dependencies**
 ```bash
@@ -56,28 +50,27 @@ The fastest way to verify the agent's workflow directly from your CLI. This meth
 conda create -n mcp-agent python=3.11
 conda activate mcp-agent
 
-cd mcp-cli-agent
-pip install -r requirements.txt
+cd mcp-api-agent
+pip install -r requirements_api.txt
 ```
 
-2. **Configure Settings (config.py)**
-Modify the `MCP_SERVERS` URLs in your previously copied `config.py` to point to the **Kubernetes NodePort** addresses.
-```python
-# mcp-cli-agent/config.py modification example
-MCP_SERVERS = [
+2. **Configure Settings (config.json)**
+Modify the `MCP_SERVERS` URLs in your previously copied `config.json` to point to the **Kubernetes NodePort** addresses.
+```json
+// mcp-api-agent/config.json modification example
+"MCP_SERVERS": [
     {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
     {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-    # ...
 ]
 ```
 
-3. **Run the Agent**
+3. **Run the API Server**
 ```bash
-python main.py
+uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Deploying via GHCR (Kubernetes)
-For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory.
+For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The API Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-api-agent` directory.
 
 You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
 
@@ -85,10 +78,10 @@ You can reliably deploy it on your Kubernetes cluster using the following compre
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mcp-cli-agent-config
+  name: mcp-api-agent-config
   namespace: mcp
   labels:
-    app: mcp-cli-agent
+    app: mcp-api-agent
 data:
   config.json: |
     {
@@ -117,27 +110,25 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-cli-agent-deployment
+  name: mcp-api-agent-deployment
   namespace: mcp
   labels:
-    app: mcp-cli-agent
+    app: mcp-api-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mcp-cli-agent
+      app: mcp-api-agent
   template:
     metadata:
       labels:
-        app: mcp-cli-agent
+        app: mcp-api-agent
     spec:
       containers:
-      - name: mcp-cli-agent
+      - name: mcp-api-agent
         # Using the official published package image
         image: ghcr.io/jwjinn/mcp-api-agent:latest
         imagePullPolicy: Always
-        stdin: true
-        tty: true
         env:
         - name: LANGCHAIN_TRACING_V2
           value: "true"
@@ -149,10 +140,12 @@ spec:
         - name: config-volume
           mountPath: /app/config
           readOnly: true
+        ports:
+        - containerPort: 8000
       volumes:
       - name: config-volume
         configMap:
-          name: mcp-cli-agent-config
+          name: mcp-api-agent-config
 ```
 
 Apply the manifest to your Kubernetes cluster:

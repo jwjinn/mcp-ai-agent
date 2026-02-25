@@ -1,11 +1,11 @@
-name: Build and Push CLI Agent to GHCR
+name: Build and Push API Agent to GHCR
 
 on:
   push:
     branches:
       - master
     paths:
-      - 'mcp-cli-agent/**'
+      - 'mcp-api-agent/**'
       - '.github/workflows/docker-publish.yml'
 
 env:
@@ -44,8 +44,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./mcp-cli-agent
-          file: ./mcp-cli-agent/Dockerfile
+          context: ./mcp-api-agent
+          file: ./mcp-api-agent/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

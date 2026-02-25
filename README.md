@@ -14,10 +14,7 @@
 
 ## Architecture
 
-프로젝트는 용도에 맞게 두 개의 주요 컴포넌트로 나뉘어져 있습니다:
-
-- **`mcp-cli-agent/`**: 터미널에서 에이전트와 직접 상호작용하고, 툴이나 프롬프트 변경사항을 즉각적으로 테스트하기 위한 경량화된 파이썬 CLI 환경입니다.
-- **`mcp-api-agent/`**: 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션입니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
+이 프로젝트는 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션(`mcp-api-agent/`)을 메인으로 제공합니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
 
 ### Supported MCP Servers (지원 도구)
 에이전트는 다음과 같은 여러 개의 MCP 서버와 동적으로 연결되어 작업합니다:
@@ -39,16 +36,13 @@
 기본적인 레포지토리를 클론받은 후, 사용자의 환경에 맞게 제공된 템플릿 파일에서 IP 주소 및 API Key를 교체합니다.
 
 ```bash
-# CLI 버전 설정 복사
-cp mcp-cli-agent/config.example.py mcp-cli-agent/config.py
-
-# FastAPI 버전 설정 복사
+# FastAPI 설정 복사
 cp mcp-api-agent/config.example.py mcp-api-agent/config.py
 cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 ```
 
-### 2. Local PC Testing (로컬 환경 테스트)
-가장 빠르게 에이전트의 워크플로우를 CLI에서 직접 동작 확인하는 방법입니다. 소스코드를 직접 수정하며 테스트할 때 적합합니다.
+### 2. Local PC Testing (FastAPI 로컬 환경 테스트)
+가장 빠르게 에이전트의 워크플로우를 동작 확인하는 방법입니다. 
 
 1. **Python 가상환경(Conda 등) 구성 및 의존성 추가**
 ```bash
@@ -56,28 +50,27 @@ cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 conda create -n mcp-agent python=3.11
 conda activate mcp-agent
 
-cd mcp-cli-agent
-pip install -r requirements.txt
+cd mcp-api-agent
+pip install -r requirements_api.txt
 ```
 
-2. **설정 파일(config.py) 작성**
-미리 복사해 둔 `config.py` 파일 내의 `MCP_SERVERS` URL을 **쿠버네티스의 NodePort 주소**로 변경합니다.
-```python
-# mcp-cli-agent/config.py 수정 예시
-MCP_SERVERS = [
+2. **설정 파일(config.json) 작성**
+미리 복사해 둔 `config.json` 파일 내의 `MCP_SERVERS` URL을 **쿠버네티스의 NodePort 주소**로 변경합니다.
+```json
+// mcp-api-agent/config.json 수정 예시
+"MCP_SERVERS": [
     {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
     {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-    # ...
 ]
 ```
 
-3. **에이전트 실행**
+3. **에이전트 API 서버 실행**
 ```bash
-python main.py
+uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Deploying via GHCR (Kubernetes 배포)
-실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
+실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-api-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
 
 아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트를 작성하여 쿠버네티스에서 안정적으로 실행하세요.
 
@@ -85,10 +78,10 @@ python main.py
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mcp-cli-agent-config
+  name: mcp-api-agent-config
   namespace: mcp
   labels:
-    app: mcp-cli-agent
+    app: mcp-api-agent
 data:
   config.json: |
     {
@@ -117,27 +110,25 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-cli-agent-deployment
+  name: mcp-api-agent-deployment
   namespace: mcp
   labels:
-    app: mcp-cli-agent
+    app: mcp-api-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mcp-cli-agent
+      app: mcp-api-agent
   template:
     metadata:
       labels:
-        app: mcp-cli-agent
+        app: mcp-api-agent
     spec:
       containers:
-      - name: mcp-cli-agent
+      - name: mcp-api-agent
         # 생성된 공식 패키지 이미지를 사용합니다.
         image: ghcr.io/jwjinn/mcp-api-agent:latest
         imagePullPolicy: Always
-        stdin: true
-        tty: true
         env:
         - name: LANGCHAIN_TRACING_V2
           value: "true"
@@ -149,10 +140,12 @@ spec:
         - name: config-volume
           mountPath: /app/config
           readOnly: true
+        ports:
+        - containerPort: 8000
       volumes:
       - name: config-volume
         configMap:
-          name: mcp-cli-agent-config
+          name: mcp-api-agent-config
 ```
 
 작성한 매니페스트를 쿠버네티스 클러스터에 적용합니다:
