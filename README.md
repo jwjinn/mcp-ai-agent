@@ -58,24 +58,88 @@ cd mcp-cli-agent
 pip install -r requirements.txt
 python main.py
 ### 3. Deploying via GHCR (Kubernetes)
-`mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 빌드되고 배포됩니다. 배포된 이미지를 활용해 쿠버네티스에서 바로 실행하는 방법은 다음과 같습니다.
+`mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 빌드되고 배포됩니다. 배포된 이미지를 활용해 쿠버네티스에서 안정적으로 실행하기 위한 통합 배포 가이드(ConfigMap + Deployment)는 다음과 같습니다.
 
 ```yaml
 apiVersion: v1
-kind: Pod
+kind: ConfigMap
 metadata:
-  name: mcp-cli-agent
+  name: mcp-cli-agent-config
+  namespace: mcp
+  labels:
+    app: mcp-cli-agent
+data:
+  config.json: |
+    {
+      "MCP_SERVERS": [
+        {"name": "k8s",             "url": "http://mcp-k8s-svc.mcp/sse"},
+        {"name": "VictoriaLog",     "url": "http://mcp-vlogs-svc.mcp/sse"},
+        {"name": "VictoriaMetrics", "url": "http://mcp-vm-svc.mcp/sse"},
+        {"name": "VictoriaTrace",   "url": "http://mcp-vtraces-svc.mcp/sse"}
+      ],
+      "INSTRUCT_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-custom",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-instruct.example.com"},
+        "temperature": 0
+      },
+      "THINKING_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-thinking",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-thinking.example.com"},
+        "temperature": 0
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-cli-agent-deployment
+  namespace: mcp
+  labels:
+    app: mcp-cli-agent
 spec:
-  containers:
-  - name: agent
-    # 본인의 실제 Github Username과 저장소 이름으로 변경해주세요.
-    image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
-    imagePullPolicy: Always
-    stdin: true
-    tty: true
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-cli-agent
+  template:
+    metadata:
+      labels:
+        app: mcp-cli-agent
+    spec:
+      containers:
+      - name: mcp-cli-agent
+        # 본인의 실제 Github Username과 저장소 이름으로 변경해주세요.
+        image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
+        imagePullPolicy: Always
+        stdin: true
+        tty: true
+        env:
+        - name: LANGCHAIN_TRACING_V2
+          value: "true"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: CONFIG_FILE_PATH
+          value: "/app/config/config.json"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-cli-agent-config
 ```
-생성한 매니페스트를 적용하고 CLI에 직접 접속(Attach)합니다:
+
+위 매니페스트를 적용하고 Deployment 내의 Pod에 접속하여 CLI 환경을 실행합니다:
+
 ```bash
-kubectl apply -f pod.yaml
-kubectl attach -it mcp-cli-agent
+kubectl apply -f manifest.yaml
+
+# 배포된 Pod의 이름을 확인하고 직접 접속(Attach)합니다.
+export POD_NAME=$(kubectl get pods -n mcp -l app=mcp-cli-agent -o jsonpath='{.items[0].metadata.name}')
+kubectl attach -it $POD_NAME -n mcp
 ```

@@ -60,24 +60,88 @@ python main.py
 ```
 
 ### 3. Deploying via GHCR (Kubernetes)
-The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory. You can easily deploy it on your Kubernetes cluster using the following approach.
+The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory. You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
 
 ```yaml
 apiVersion: v1
-kind: Pod
+kind: ConfigMap
 metadata:
-  name: mcp-cli-agent
+  name: mcp-cli-agent-config
+  namespace: mcp
+  labels:
+    app: mcp-cli-agent
+data:
+  config.json: |
+    {
+      "MCP_SERVERS": [
+        {"name": "k8s",             "url": "http://mcp-k8s-svc.mcp/sse"},
+        {"name": "VictoriaLog",     "url": "http://mcp-vlogs-svc.mcp/sse"},
+        {"name": "VictoriaMetrics", "url": "http://mcp-vm-svc.mcp/sse"},
+        {"name": "VictoriaTrace",   "url": "http://mcp-vtraces-svc.mcp/sse"}
+      ],
+      "INSTRUCT_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-custom",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-instruct.example.com"},
+        "temperature": 0
+      },
+      "THINKING_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-thinking",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-thinking.example.com"},
+        "temperature": 0
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-cli-agent-deployment
+  namespace: mcp
+  labels:
+    app: mcp-cli-agent
 spec:
-  containers:
-  - name: agent
-    # Replace with your actual repository owner/name, e.g., ghcr.io/username/mcp-ai-agent-cli-agent:latest
-    image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
-    imagePullPolicy: Always
-    stdin: true
-    tty: true
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-cli-agent
+  template:
+    metadata:
+      labels:
+        app: mcp-cli-agent
+    spec:
+      containers:
+      - name: mcp-cli-agent
+        # Replace with your actual repository owner/name
+        image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
+        imagePullPolicy: Always
+        stdin: true
+        tty: true
+        env:
+        - name: LANGCHAIN_TRACING_V2
+          value: "true"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: CONFIG_FILE_PATH
+          value: "/app/config/config.json"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-cli-agent-config
 ```
-Apply the manifest and attach to the pod to interact with the CLI:
+
+Apply the manifest and attach to the Deployment's pod to interact with the CLI:
+
 ```bash
-kubectl apply -f pod.yaml
-kubectl attach -it mcp-cli-agent
+kubectl apply -f manifest.yaml
+
+# Find the deployed Pod name and attach to it
+export POD_NAME=$(kubectl get pods -n mcp -l app=mcp-cli-agent -o jsonpath='{.items[0].metadata.name}')
+kubectl attach -it $POD_NAME -n mcp
 ```
