@@ -136,8 +136,8 @@ spec:
     spec:
       containers:
       - name: mcp-cli-agent
-        # Replace with your actual repository owner/username
-        image: ghcr.io/<YOUR_GITHUB_USERNAME>/mcp-api-agent:latest
+        # Using the official published package image
+        image: ghcr.io/jwjinn/mcp-api-agent:latest
         imagePullPolicy: Always
         stdin: true
         tty: true
