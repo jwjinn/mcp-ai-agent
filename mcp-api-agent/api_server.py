@@ -140,6 +140,9 @@ async def openai_compatible_endpoint(request: Request):
         
         has_started_thinking = False
         has_finished_thinking = False
+        import time
+        token_buffer = ""
+        last_flush_time = time.time()
 
         while True:
             # 클라이언트 연결 끊김(새로고침, 중지버튼, 타임아웃 재시도 등) 감지
@@ -150,20 +153,31 @@ async def openai_compatible_endpoint(request: Request):
                 break
 
             try:
-                # 5초마다 타임아웃을 발생시켜 빈 Ping(Keep-alive)을 보냅니다.
-                msg = await asyncio.wait_for(stream_queue.get(), timeout=5.0)
+                # 잔여 토큰이 있으면 짧게 대기, 없으면 5초 대기(Keep-Alive용)
+                timeout_val = 0.05 if token_buffer else 5.0
+                msg = await asyncio.wait_for(stream_queue.get(), timeout=timeout_val)
             except asyncio.TimeoutError:
-                # OpenWebUI나 Proxy가 연결을 끊거나 재시도(Retry)하는 것을 막기 위해
-                # SSE 표준 주석(:)을 활용한 Keep-Alive 핑 전송
-                yield ": keep-alive\n\n"
+                if token_buffer:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
+                    last_flush_time = time.time()
+                else:
+                    yield ": keep-alive\n\n"
                 continue
 
             if msg == "EOF":
+                if token_buffer:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
                 if has_started_thinking and not has_finished_thinking:
                     yield make_chunk("\n</think>\n\n")
                 break
                 
             elif msg.startswith("EVENT:"):
+                if token_buffer:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
+                    
                 text = msg.replace("EVENT:", "", 1)
                 if not has_started_thinking:
                     yield make_chunk("<think>\n" + text + "\n")
@@ -172,24 +186,35 @@ async def openai_compatible_endpoint(request: Request):
                     yield make_chunk(text + "\n")
                     
             elif msg.startswith("TOKEN:"):
-                # 진짜 모델의 답변 토큰이 시작되기 직전에 </think> 로 닫습니다.
                 if has_started_thinking and not has_finished_thinking:
                     yield make_chunk("\n</think>\n\n")
                     has_finished_thinking = True
                 
-                # 스트리밍 토큰 (진짜 답변)
-                yield make_chunk(msg.replace("TOKEN:", "", 1))
+                # 브라우저 UI 렉(Lag)을 방지하기 위해 토큰을 모읍니다.
+                token_buffer += msg.replace("TOKEN:", "", 1)
+                now = time.time()
+                # 0.05초(초당 20프레임) 간격으로 모아서 화면에 송출합니다.
+                if now - last_flush_time >= 0.05:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
+                    last_flush_time = now
                 
             elif msg.startswith("FINAL:"):
+                if token_buffer:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
+                    
                 if has_started_thinking and not has_finished_thinking:
                     yield make_chunk("\n</think>\n\n")
                     has_finished_thinking = True
                     
-                # 최종 결과 리턴 (단순 에이전트 전용)
                 yield make_chunk(msg.replace("FINAL:", "", 1))
                 
             else:
-                # 🎈 서브 에이전트 요약 진행 상황 (⏳ running for ...s) 출력
+                if token_buffer:
+                    yield make_chunk(token_buffer)
+                    token_buffer = ""
+                    
                 if not has_started_thinking:
                     yield make_chunk("<think>\n" + msg + "\n")
                     has_started_thinking = True
