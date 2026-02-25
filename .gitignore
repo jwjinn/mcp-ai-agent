@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Windows / OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+*.sqlite3
+
+# Local Configuration
+config.json
+mcp-cli-agent/config.py
+mcp-dockerized-api/config.py

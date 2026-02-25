@@ -1,0 +1,38 @@
+{
+    "MCP_SERVERS": [
+        {
+            "name": "k8s",
+            "url": "http://127.0.0.1:30184/sse"
+        },
+        {
+            "name": "vlogs",
+            "url": "http://127.0.0.1:31916/sse"
+        },
+        {
+            "name": "vm",
+            "url": "http://127.0.0.1:30618/sse"
+        },
+        {
+            "name": "vtraces",
+            "url": "http://127.0.0.1:30606/sse"
+        }
+    ],
+    "INSTRUCT_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-custom",
+        "api_key": "EMPTY",
+        "default_headers": {
+            "Host": "qwen-instruct.example.com"
+        },
+        "temperature": 0
+    },
+    "THINKING_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-thinking",
+        "api_key": "EMPTY",
+        "default_headers": {
+            "Host": "qwen-thinking.example.com"
+        },
+        "temperature": 0
+    }
+}
