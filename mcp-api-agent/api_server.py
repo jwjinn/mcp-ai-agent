@@ -119,22 +119,28 @@ async def openai_compatible_endpoint(request: Request):
         graph_task = None
         
         async def run_graph():
-            async for event in agent_app.astream(inputs):
-                for key, value in event.items():
-                    if key == "router":
-                        await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...")
-                    elif key == "orchestrator":
-                        await stream_queue.put("EVENT:📋 `[System]` 작업 계획 수립 중...")
-                    elif key == "workers":
-                        results = value.get("worker_results", [])
-                        await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.")
-                    elif key == "synthesizer":
-                        pass
-                    elif key == "simple_agent":
-                        msg = value["messages"][-1].content
-                        await stream_queue.put(f"FINAL:{msg}")
-            
-            await stream_queue.put("EOF")
+            try:
+                async for event in agent_app.astream(inputs):
+                    for key, value in event.items():
+                        if key == "router":
+                            await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...")
+                        elif key == "orchestrator":
+                            await stream_queue.put("EVENT:📋 `[System]` 작업 계획 수립 중...")
+                        elif key == "workers":
+                            results = value.get("worker_results", [])
+                            await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.")
+                        elif key == "synthesizer":
+                            pass
+                        elif key == "simple_agent":
+                            msg = value["messages"][-1].content
+                            await stream_queue.put(f"FINAL:{msg}")
+            except Exception as e:
+                logger.error(f"❌ [Graph] 실행 중 오류 발생: {e}")
+                # 에러 발생 시 UI에 명시적으로 알림
+                await stream_queue.put(f"FINAL:\n\n⚠️ **에이전트 실행 중 오류가 발생하여 중단되었습니다:**\n```\n{str(e)}\n```")
+            finally:
+                # 정상/비정상 종료 상관없이 반드시 스트림 종료 시그널 전송
+                await stream_queue.put("EOF")
 
         graph_task = asyncio.create_task(run_graph())
         
