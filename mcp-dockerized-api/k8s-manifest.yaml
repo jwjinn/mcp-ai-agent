@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-agent-config
+  namespace: mcp
+  labels:
+    app: mcp-agent
+data:
+  config.json: |
+    {
+      "MCP_SERVERS": [
+        {"name": "k8s",     "url": "http://mcp-k8s-svc.mcp/sse"},
+        {"name": "vlogs",   "url": "http://mcp-vlogs-svc.mcp/sse"},
+        {"name": "vm",      "url": "http://mcp-vm-svc.mcp/sse"},
+        {"name": "vtraces", "url": "http://mcp-vtraces-svc.mcp/sse"}
+      ],
+      "INSTRUCT_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-custom",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-instruct.example.com"},
+        "temperature": 0
+      },
+      "THINKING_CONFIG": {
+        "base_url": "http://127.0.0.1:80/v1",
+        "model_name": "qwen-thinking",
+        "api_key": "EMPTY",
+        "default_headers": {"Host": "qwen-thinking.example.com"},
+        "temperature": 0
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-agent-deployment
+  namespace: mcp
+  labels:
+    app: mcp-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-agent
+  template:
+    metadata:
+      labels:
+        app: mcp-agent
+    spec:
+      containers:
+      - name: mcp-agent
+        image: ghcr.io/jwjinn/langgraph------agent:latest # GitHub Actions로 빌드된 최신 이미지 주소
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+        # 필요한 환경변수 주입 (예: LANGCHAIN_API_KEY 등)
+        - name: LANGCHAIN_TRACING_V2
+          value: "true"
+        # [추가] 어플리케이션 로그 레벨 제어 (DEBUG, INFO, WARN, ERROR)
+        - name: LOG_LEVEL
+          value: "INFO"
+        # [추가] ConfigMap이 마운트될 경로 지정
+        - name: CONFIG_FILE_PATH
+          value: "/app/config/config.json"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-agent-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-agent-service
+  namespace: mcp
+spec:
+  type: ClusterIP # 외부 노출이 필요하다면 NodePort 또는 LoadBalancer로 변경
+  ports:
+  - port: 80 # 쿠버네티스 내부 포트
+    targetPort: 8000 # 컨테이너 포트
+  selector:
+    app: mcp-agent
