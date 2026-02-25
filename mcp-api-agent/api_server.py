@@ -146,25 +146,48 @@ async def openai_compatible_endpoint(request: Request):
         graph_task = asyncio.create_task(run_graph())
         
         # 메인 루프: 큐에서 계속 데이터를 꺼내 클라이언트로 보냄
+        # OpenWebUI의 collapsible 기능을 위해 중간 과정들을 <think> 태그로 감쌉니다.
+        has_started_thinking = False
+        has_finished_thinking = False
+
         while True:
             msg = await stream_queue.get()
             
             if msg == "EOF":
+                # 만약 <think> 도중 끝났다면 닫아줌
+                if has_started_thinking and not has_finished_thinking:
+                    yield make_chunk("\n</think>\n\n")
                 break
             elif msg.startswith("EVENT:"):
-                # 기본 Graph 상태 이벤트
-                yield make_chunk(msg.replace("EVENT:", "", 1))
+                text = msg.replace("EVENT:", "", 1)
+                if not has_started_thinking:
+                    yield make_chunk("<think>\n" + text)
+                    has_started_thinking = True
+                else:
+                    yield make_chunk(text)
             elif msg.startswith("TOKEN:"):
+                # 진짜 모델의 답변 토큰이 시작되기 직전에 </think> 로 닫습니다.
+                if has_started_thinking and not has_finished_thinking:
+                    yield make_chunk("\n</think>\n\n")
+                    has_finished_thinking = True
+                
                 # 스트리밍 토큰
                 yield make_chunk(msg.replace("TOKEN:", "", 1))
             elif msg.startswith("FINAL:"):
+                # 만약 <think> 도중 끝났다면 닫아줌
+                if has_started_thinking and not has_finished_thinking:
+                    yield make_chunk("\n</think>\n\n")
+                    has_finished_thinking = True
+                    
                 # 최종 결과 리턴 (단순 에이전트 전용)
                 yield make_chunk(msg.replace("FINAL:", "", 1))
             else:
                 # 🎈 서브 에이전트 요약 진행 상황 (⏳ running for ...s) 출력
-                # 그냥 넘기면 OpenWebUI 화면 상 이전 글씨에 붙어버리므로, 
-                # 보기 좋게 줄바꿈 추가
-                yield make_chunk(f"{msg}\n\n")
+                if not has_started_thinking:
+                    yield make_chunk(f"<think>\n{msg}\n\n")
+                    has_started_thinking = True
+                else:
+                    yield make_chunk(f"{msg}\n\n")
                 
         # 스트리밍 종료
         end_chunk = {
