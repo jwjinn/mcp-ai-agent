@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements_api.txt
 # 애플리케이션 소스 복사
 COPY . .
 
+# config.py가 없는 경우(git ignore됨)를 대비해 example 파일을 기본 설정으로 복사하여 에러 방지
+RUN cp config.example.py config.py
+
 # FastAPI 포트 개방
 EXPOSE 8000
 

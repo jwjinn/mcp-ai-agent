@@ -15,17 +15,17 @@ data:
         {"name": "vtraces", "url": "http://mcp-vtraces-svc.mcp/sse"}
       ],
       "INSTRUCT_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
+        "base_url": "http://192.168.120.157:80/v1",
         "model_name": "qwen-custom",
         "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-instruct.example.com"},
+        "default_headers": {"Host": "qwen-instruct-nai-admin.example.com"},
         "temperature": 0
       },
       "THINKING_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
+        "base_url": "http://192.168.120.157:80/v1",
         "model_name": "qwen-thinking",
         "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-thinking.example.com"},
+        "default_headers": {"Host": "qwen-thinking-nai-admin.example.com"},
         "temperature": 0
       }
     }
