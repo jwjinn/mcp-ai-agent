@@ -50,17 +50,39 @@ cp mcp-api-agent/config.example.py mcp-api-agent/config.py
 cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 ```
 
-### 2. Running the CLI Agent
-This is the fastest way to verify the agent's workflow locally.
+### 2. Local PC Testing
+The fastest way to verify the agent's workflow directly from your CLI. This method is ideal when actively modifying and testing source code.
 
+1. **Set up a Python Virtual Environment (e.g., Conda) and Install Dependencies**
 ```bash
+# Create and activate a Conda environment
+conda create -n mcp-agent python=3.11
+conda activate mcp-agent
+
 cd mcp-cli-agent
 pip install -r requirements.txt
+```
+
+2. **Configure Settings (config.py)**
+Modify the `MCP_SERVERS` URLs in your previously copied `config.py` to point to the **Kubernetes NodePort** addresses.
+```python
+# mcp-cli-agent/config.py modification example
+MCP_SERVERS = [
+    {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
+    {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
+    # ...
+]
+```
+
+3. **Run the Agent**
+```bash
 python main.py
 ```
 
 ### 3. Deploying via GHCR (Kubernetes)
-The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory. You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
+For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory.
+
+You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
 
 ```yaml
 apiVersion: v1

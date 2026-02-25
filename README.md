@@ -50,15 +50,39 @@ cp mcp-api-agent/config.example.py mcp-api-agent/config.py
 cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 ```
 
-### 2. Running the CLI Agent (로컬에서 CLI 실행)
-가장 빠르게 에이전트의 워크플로우를 동작 확인하는 방법입니다.
+### 2. Local PC Testing (로컬 환경 테스트)
+가장 빠르게 에이전트의 워크플로우를 CLI에서 직접 동작 확인하는 방법입니다. 소스코드를 직접 수정하며 테스트할 때 적합합니다.
 
+1. **Python 가상환경(Conda 등) 구성 및 의존성 추가**
 ```bash
+# Conda 환경 생성 및 활성화
+conda create -n mcp-agent python=3.11
+conda activate mcp-agent
+
 cd mcp-cli-agent
 pip install -r requirements.txt
+```
+
+2. **설정 파일(config.py) 작성**
+미리 복사해 둔 `config.py` 파일 내의 `MCP_SERVERS` URL을 **쿠버네티스의 NodePort 주소**로 변경합니다.
+```python
+# mcp-cli-agent/config.py 수정 예시
+MCP_SERVERS = [
+    {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
+    {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
+    # ...
+]
+```
+
+3. **에이전트 실행**
+```bash
 python main.py
-### 3. Deploying via GHCR (Kubernetes)
-`mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 빌드되고 배포됩니다. 배포된 이미지를 활용해 쿠버네티스에서 안정적으로 실행하기 위한 통합 배포 가이드(ConfigMap + Deployment)는 다음과 같습니다.
+```
+
+### 3. Deploying via GHCR (Kubernetes 배포)
+실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
+
+아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트를 작성하여 쿠버네티스에서 안정적으로 실행하세요.
 
 ```yaml
 apiVersion: v1
