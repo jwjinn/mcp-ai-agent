@@ -10,7 +10,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: mcp-api-agent
+  # GHCR requires the username (actor/repository owner) prefix
+  IMAGE_NAME: ${{ github.repository_owner }}/mcp-api-agent
 
 jobs:
   build-and-push-image:
