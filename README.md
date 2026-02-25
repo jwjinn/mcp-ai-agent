@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 
-[English version](#) | [한국어버전](#)
+[English version](README_en.md) | [한국어버전](README.md)
 
 ## Introduction
 
