@@ -55,37 +55,3 @@ cd mcp-cli-agent
 pip install -r requirements.txt
 python main.py
 ```
-
-### 3. Deploying the API Server (도커 및 K8s 배포)
-프론트엔드 대시보드와 연동하기 위한 REST & SSE API 서버를 배포합니다.
-
-```bash
-cd mcp-dockerized-api
-
-# Docker 이미지 빌드 및 단일 실행
-docker build -t mcp-ai-agent:latest .
-docker run -p 8000:8000 -v $(pwd)/config.json:/app/config/config.json mcp-ai-agent:latest
-
-# 쿠버네티스로 배포하는 경우 (제공된 매니페스트 활용)
-kubectl apply -f k8s-manifest.yaml
-```
-
-## Monitor & WebUI Integration
-
-`mcp-dockerized-api`는 백엔드 내부에서 발생하고 있는 복잡한 에이전트 호출 및 도구 연계 과정을 실시간 스트리밍(Streaming)으로 프론트엔드에 전달합니다. 내부 API에서는 상태 메시지 방송(Broadcast) 큐를 통해 다음과 같은 처리 상황을 사용자가 볼 수 있게 합니다.
-* *"k8s 도구를 사용하여 Pod 리스트를 조회 중입니다..."*
-* *"로그 분석을 위해 최대 4k 토큰 이내로 요약을 진행하고 있습니다..."*
-
-이와 관련된 디버깅 로그를 파악하고 싶다면 컨테이너 환경변수에 `LOG_LEVEL=DEBUG`를 추가하세요.
-
-## Notes
-- 보안 목적으로 초기 구성 파일들은 `.gitignore`에 등록되어 있습니다. K8s의 경우, K8s Manifest 파일 내 ConfigMap으로 덮어씌워 사용할 수 있습니다.
-- 현재 버전에선 Thinking 모델과 Instruct 모델을 혼합 사용하는 구조를 기본으로 설계했습니다. `max_tokens` 제어 등을 통해 메모리 초과를 방지합니다.
-
-## RoadMap, Governance & Contributing
-
-- 현재 개발 로드맵으로는 더 많은 프로바이더(플러그인) 지원 확장 및 모니터링 시스템 스케줄 최적화가 계획되어 있습니다.
-- 기여(Contribution) 및 패치 작성을 희망하시는 분들은 이슈와 PR(Pull Request)을 이용해 주세요. 어떠한 피드백이나 개선안 제안도 환영합니다. 
-
-## License
-MCP AI Agent 프로젝트는 [Apache 2.0 license](LICENSE) 정책을 따릅니다. 상세한 부분은 프로젝트에 포함된 라이선스 문서를 참조해 주시길 바랍니다.
