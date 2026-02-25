@@ -90,8 +90,49 @@ async def openai_compatible_endpoint(request: Request):
     messages = data.get("messages", [])
     user_input = messages[-1]["content"] if messages else ""
     model_name = data.get("model", "qwen-k8s-agent")
+    is_stream = data.get("stream", False)
     
-    logger.info(f"[OpenWebUI] User > {user_input}")
+    logger.info(f"[OpenWebUI] User > {user_input} (stream={is_stream})")
+
+    if not is_stream:
+        # OpenWebUI가 채팅 방 제목(Title) 생성을 위해 stream=False로 요청하는 경우
+        # 무거운 K8s 에이전트 그래프를 태우지 않고 모델에 직접 질의하여 즉각 답변(JSON) 반환
+        logger.info("⚡ [API] stream=False 요청 감지: Agent 우회 및 즉각 응답 모드")
+        from agent_graph import get_instruct_model
+        import time
+        llm = get_instruct_model()
+        try:
+            # Langchain 메시지 객체로 변환
+            from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+            lc_messages = []
+            for m in messages:
+                if m["role"] == "system":
+                    lc_messages.append(SystemMessage(content=m["content"]))
+                elif m["role"] == "assistant":
+                    lc_messages.append(AIMessage(content=m["content"]))
+                else:
+                    lc_messages.append(HumanMessage(content=m["content"]))
+                    
+            response = await llm.ainvoke(lc_messages)
+            return {
+                "id": f"chatcmpl-{int(time.time())}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": response.content
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            }
+        except Exception as e:
+            logger.error(f"❌ [Non-Stream] Error: {e}")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=500, content={"error": str(e)})
 
     async def stream_generator():
         inputs = {"messages": [HumanMessage(content=user_input)]}
