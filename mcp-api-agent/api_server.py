@@ -132,7 +132,10 @@ async def openai_compatible_endpoint(request: Request):
                     elif key == "workers":
                         results = value.get("worker_results", [])
                         await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.\n\n---\n\n")
-                    elif key == "synthesizer" or key == "simple_agent":
+                    elif key == "synthesizer":
+                        # Synthesizer는 토큰 단위로 실시간 스트리밍을 하므로 전체 메시지 재전송은 생략
+                        pass
+                    elif key == "simple_agent":
                         msg = value["messages"][-1].content
                         await stream_queue.put(f"FINAL:{msg}")
             
@@ -151,8 +154,11 @@ async def openai_compatible_endpoint(request: Request):
             elif msg.startswith("EVENT:"):
                 # 기본 Graph 상태 이벤트
                 yield make_chunk(msg.replace("EVENT:", "", 1))
+            elif msg.startswith("TOKEN:"):
+                # 스트리밍 토큰
+                yield make_chunk(msg.replace("TOKEN:", "", 1))
             elif msg.startswith("FINAL:"):
-                # 최종 결과 리턴
+                # 최종 결과 리턴 (단순 에이전트 전용)
                 yield make_chunk(msg.replace("FINAL:", "", 1))
             else:
                 # 🎈 서브 에이전트 요약 진행 상황 (⏳ running for ...s) 출력

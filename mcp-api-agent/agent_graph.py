@@ -31,17 +31,22 @@ from langchain_core.callbacks import BaseCallbackHandler
 import sys
 
 # Thinking 과정을 실시간으로 보여주기 위한 콜백
-# Thinking 과정을 필터링하고 결과만 보여주는 콜백
-class ThinkingStreamCallback(BaseCallbackHandler):
-    def __init__(self):
+from langchain_core.callbacks import AsyncCallbackHandler
+
+class AsyncThinkingStreamCallback(AsyncCallbackHandler):
+    def __init__(self, target_queue=None):
         self.in_thinking = True # 기본적으로 생각 중이라고 가정 (첫 출력부터 숨김)
         self.buffer = "" # 태그 감지를 위한 버퍼
+        self.target_queue = target_queue
 
-    def on_llm_new_token(self, token: str, **kwargs) -> None:
+    async def on_llm_new_token(self, token: str, **kwargs) -> None:
+        import sys
         if not self.in_thinking:
             # 이미 생각 끝났으면 바로 출력
             sys.stdout.write(token)
             sys.stdout.flush()
+            if self.target_queue:
+                await self.target_queue.put(f"TOKEN:{token}")
             return
 
         # 태그 감지를 위해 버퍼에 추가
@@ -54,13 +59,12 @@ class ThinkingStreamCallback(BaseCallbackHandler):
             parts = self.buffer.split("</think>")
             if len(parts) > 1:
                 # 뒷부분만 출력 (앞부분은 버림)
-                sys.stdout.write(parts[-1])
+                chunk = parts[-1]
+                sys.stdout.write(chunk)
                 sys.stdout.flush()
+                if self.target_queue:
+                    await self.target_queue.put(f"TOKEN:{chunk}")
             self.buffer = "" # 버퍼 초기화
-            
-        # 버퍼가 너무 커지면(태그가 없다는 뜻), 일부러 비우지 않음 (thinking 중이니까 숨김)
-        # 다만 메모리 절약을 위해 아주 오래된 건 버릴 수도 있지만, 
-        # thinking 토큰이 길어질 수 있으므로 그냥 둠 (텍스트라 크지 않음)
 
 def get_instruct_model():
     return ChatOpenAI(
@@ -81,7 +85,8 @@ def get_thinking_model(stream_prefix=""):
     callbacks = []
     if stream_prefix:
         logger.debug(f"{stream_prefix} ") # 시작할 때
-        callbacks = [ThinkingStreamCallback()]
+        from config import stream_queue
+        callbacks = [AsyncThinkingStreamCallback(target_queue=stream_queue)]
 
     return ChatOpenAI(
         model=THINKING_CONFIG["model_name"],
