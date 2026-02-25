@@ -57,4 +57,25 @@ cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 cd mcp-cli-agent
 pip install -r requirements.txt
 python main.py
+### 3. Deploying via GHCR (Kubernetes)
+`mcp-cli-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 빌드되고 배포됩니다. 배포된 이미지를 활용해 쿠버네티스에서 바로 실행하는 방법은 다음과 같습니다.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mcp-cli-agent
+spec:
+  containers:
+  - name: agent
+    # 본인의 실제 Github Username과 저장소 이름으로 변경해주세요.
+    image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
+    imagePullPolicy: Always
+    stdin: true
+    tty: true
+```
+생성한 매니페스트를 적용하고 CLI에 직접 접속(Attach)합니다:
+```bash
+kubectl apply -f pod.yaml
+kubectl attach -it mcp-cli-agent
 ```

@@ -58,3 +58,26 @@ cd mcp-cli-agent
 pip install -r requirements.txt
 python main.py
 ```
+
+### 3. Deploying via GHCR (Kubernetes)
+The CLI Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-cli-agent` directory. You can easily deploy it on your Kubernetes cluster using the following approach.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mcp-cli-agent
+spec:
+  containers:
+  - name: agent
+    # Replace with your actual repository owner/name, e.g., ghcr.io/username/mcp-ai-agent-cli-agent:latest
+    image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
+    imagePullPolicy: Always
+    stdin: true
+    tty: true
+```
+Apply the manifest and attach to the pod to interact with the CLI:
+```bash
+kubectl apply -f pod.yaml
+kubectl attach -it mcp-cli-agent
+```
