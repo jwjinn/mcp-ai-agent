@@ -17,7 +17,7 @@
 프로젝트는 용도에 맞게 두 개의 주요 컴포넌트로 나뉘어져 있습니다:
 
 - **`mcp-cli-agent/`**: 터미널에서 에이전트와 직접 상호작용하고, 툴이나 프롬프트 변경사항을 즉각적으로 테스트하기 위한 경량화된 파이썬 CLI 환경입니다.
-- **`mcp-dockerized-api/`**: 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션입니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
+- **`mcp-api-agent/`**: 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션입니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
 
 ### Supported MCP Servers (지원 도구)
 에이전트는 다음과 같은 여러 개의 MCP 서버와 동적으로 연결되어 작업합니다:
@@ -43,8 +43,8 @@
 cp mcp-cli-agent/config.example.py mcp-cli-agent/config.py
 
 # FastAPI 버전 설정 복사
-cp mcp-dockerized-api/config.example.py mcp-dockerized-api/config.py
-cp mcp-dockerized-api/config.example.json mcp-dockerized-api/config.json
+cp mcp-api-agent/config.example.py mcp-api-agent/config.py
+cp mcp-api-agent/config.example.json mcp-api-agent/config.json
 ```
 
 ### 2. Running the CLI Agent (로컬에서 CLI 실행)

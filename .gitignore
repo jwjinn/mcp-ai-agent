@@ -25,4 +25,4 @@ ENV/
 # Local Configuration
 config.json
 mcp-cli-agent/config.py
-mcp-dockerized-api/config.py
+mcp-api-agent/config.py
