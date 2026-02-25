@@ -107,48 +107,40 @@ async def openai_compatible_endpoint(request: Request):
             }
             return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
         
+        # OpenWebUI 호환성을 위한 "개별 Think Block" 전송 헬퍼
+        # 한 번에 열어두고 기다리면 Renderer가 버퍼링하므로,
+        # 이벤트마다 <think>내용</think> 형태로 닫아서 전송합니다.
+        def make_think_chunk(text):
+            return make_chunk(f"<think>\n{text}\n</think>\n\n")
+        
         # --- 복합 스트리밍 로직 ---
         # 1. LangGraph의 astream 이벤트 스트림
         # 2. 백그라운드 Worker의 진행 상태를 담는 stream_queue 
-        # 두 개를 동시에 기다리면서 먼저 나오는 데이터를 계속 전달해야 함.
         
         import asyncio
         queue_task = None
         graph_task = None
         
-        # 큐에서 잔여/새 이벤트를 빼오는 코루틴 팩토리
-        async def get_queue_msg():
-            return await stream_queue.get()
-            
         async def run_graph():
-            # astream은 async iterator이므로 리스트로 변환하기보다는 직접 처리
-            # 복잡도를 낮추기 위해 직접 순회하며 큐에 특수 시그널을 넣는 방식으로 래핑
             async for event in agent_app.astream(inputs):
                 for key, value in event.items():
                     if key == "router":
-                        await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...\n\n")
+                        await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...")
                     elif key == "orchestrator":
-                        await stream_queue.put("EVENT:📋 `[System]` 작업 계획 수립 중...\n\n")
+                        await stream_queue.put("EVENT:📋 `[System]` 작업 계획 수립 중...")
                     elif key == "workers":
                         results = value.get("worker_results", [])
-                        await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.\n\n---\n\n")
+                        await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.")
                     elif key == "synthesizer":
-                        # Synthesizer는 토큰 단위로 실시간 스트리밍을 하므로 전체 메시지 재전송은 생략
                         pass
                     elif key == "simple_agent":
                         msg = value["messages"][-1].content
                         await stream_queue.put(f"FINAL:{msg}")
             
-            # 그래프 실행이 끝나면 종료 시그널 전송
             await stream_queue.put("EOF")
 
-        # 그래프 실행을 백그라운드 Task로 시작
         graph_task = asyncio.create_task(run_graph())
         
-        # 메인 루프: 큐에서 계속 데이터를 꺼내 클라이언트로 보냄
-        # OpenWebUI의 collapsible 기능을 위해 중간 과정들을 <think> 태그로 감쌉니다.
-        has_started_thinking = False
-        has_finished_thinking = False
         while True:
             # 클라이언트 연결 끊김(새로고침, 중지버튼, 타임아웃 재시도 등) 감지
             if await request.is_disconnected():
@@ -167,40 +159,19 @@ async def openai_compatible_endpoint(request: Request):
                 continue
 
             if msg == "EOF":
-                # 만약 <think> 도중 끝났다면 닫아줌
-                if has_started_thinking and not has_finished_thinking:
-                    yield make_chunk("\n</think>\n\n")
                 break
             elif msg.startswith("EVENT:"):
                 text = msg.replace("EVENT:", "", 1)
-                if not has_started_thinking:
-                    yield make_chunk("<think>\n" + text)
-                    has_started_thinking = True
-                else:
-                    yield make_chunk(text)
+                yield make_think_chunk(text)
             elif msg.startswith("TOKEN:"):
-                # 진짜 모델의 답변 토큰이 시작되기 직전에 </think> 로 닫습니다.
-                if has_started_thinking and not has_finished_thinking:
-                    yield make_chunk("\n</think>\n\n")
-                    has_finished_thinking = True
-                
-                # 스트리밍 토큰
+                # 스트리밍 토큰 (진짜 답변)
                 yield make_chunk(msg.replace("TOKEN:", "", 1))
             elif msg.startswith("FINAL:"):
-                # 만약 <think> 도중 끝났다면 닫아줌
-                if has_started_thinking and not has_finished_thinking:
-                    yield make_chunk("\n</think>\n\n")
-                    has_finished_thinking = True
-                    
                 # 최종 결과 리턴 (단순 에이전트 전용)
                 yield make_chunk(msg.replace("FINAL:", "", 1))
             else:
                 # 🎈 서브 에이전트 요약 진행 상황 (⏳ running for ...s) 출력
-                if not has_started_thinking:
-                    yield make_chunk(f"<think>\n{msg}\n\n")
-                    has_started_thinking = True
-                else:
-                    yield make_chunk(f"{msg}\n\n")
+                yield make_think_chunk(msg)
                 
         # 스트리밍 종료
         end_chunk = {
