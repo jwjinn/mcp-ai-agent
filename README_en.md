@@ -11,7 +11,7 @@
 **MCP AI Agent** is an intelligent microservice and infrastructure orchestration middleware that combines LangGraph-based AI workflows with the **Model Context Protocol (MCP)**. This agent allows users to autonomously control and diagnose various backend endpoint tools—such as Kubernetes clusters, unified logging systems, and Virtual Machines (VMs)—through natural language conversations.
 
 ### Demo
-<video src="assets/demo.mp4" controls="controls" muted="muted" style="max-height:640px; min-height: 200px; width: 100%; object-fit: cover;"></video>
+<video src="https://github.com/jwjinn/mcp-ai-agent/raw/master/assets/demo.mp4" controls="controls" muted="muted" width="100%"></video>
 
 Notably, it supports a dual LLM environment: a **Thinking Model** for deep reasoning and planning, and an **Instruct Model** for fast and precise tool execution. This provides an automated AIOps (Artificial Intelligence for IT Operations) solution that goes far beyond traditional static dashboards.
 
