@@ -121,8 +121,10 @@ class MCPClient:
             
             final_output = "\n".join(output_text)
             
-            # [최적화] Tool Output Truncation (토큰 폭탄 방지)
-            MAX_OUTPUT_LENGTH = 50000 
+            # [최적화] Tool Output Truncation (토큰 폭탄 및 LLM 뻗음 방지)
+            # 50,000자는 너무 길어 LLM이 느려지거나 컨텍스트 한계로 에러(Crash)를 유발합니다.
+            # 속도 최적화 및 안정성을 위해 10,000자(약 3,000토큰)로 제한합니다.
+            MAX_OUTPUT_LENGTH = 10000 
             if len(final_output) > MAX_OUTPUT_LENGTH:
                 final_output = final_output[:MAX_OUTPUT_LENGTH] + \
                     f"\n... (⚠️ Output truncated by {len(final_output) - MAX_OUTPUT_LENGTH} chars. Use specific filters to see more.)"
