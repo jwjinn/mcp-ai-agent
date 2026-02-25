@@ -11,7 +11,8 @@
 **MCP AI Agent**는 LangGraph 기반의 AI 워크플로우와 **Model Context Protocol (MCP)**를 결합한 지능형 마이크로서비스 및 인프라 오케스트레이션 미들웨어입니다. 이 에이전트는 사용자와의 자연어 대화를 통해 쿠버네티스(Kubernetes) 클러스터, 로그 통합 시스템, 가상 머신(VM) 등의 다양한 백엔드 엔드포인트 도구들을 자율적으로 제어하고 진단할 수 있습니다.
 
 ### Demo
-<video src="https://github.com/jwjinn/mcp-ai-agent/raw/master/assets/demo.mp4" controls="controls" muted="muted" width="100%"></video>
+<!-- 💡 팁: GitHub 웹사이트에서 README.md 편집 창(✏️)에 데모 영상 파일(.mp4)을 직접 드래그 앤 드롭하시면 자동으로 깃허브 전용 비디오 플레이어가 생성됩니다. -->
+[🎥 Watch Demo Video (데모 영상 보기)](#)
 
 특히, 이중 LLM 모델 환경(**Thinking Model**을 활용한 깊은 추론 및 계획 세우기와 **Instruct Model**을 활용한 빠르고 정확한 도구 실행)을 지원하여, 기존의 단순한 대시보드를 넘어서는 자동화된 인프라 AIOps(Artificial Intelligence for IT Operations) 솔루션을 제공합니다.
 
