@@ -1,0 +1,38 @@
+{
+    "MCP_SERVERS": [
+        {
+            "name": "k8s",
+            "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"
+        },
+        {
+            "name": "VictoriaLog",
+            "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"
+        },
+        {
+            "name": "VictoriaMetrics",
+            "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"
+        },
+        {
+            "name": "VictoriaTrace",
+            "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"
+        }
+    ],
+    "INSTRUCT_CONFIG": {
+        "base_url": "http://<YOUR_LLM_API_BASE_URL>/v1",
+        "model_name": "<YOUR_INSTRUCT_MODEL_NAME>",
+        "api_key": "<YOUR_API_KEY>",
+        "default_headers": {
+            "Host": "<OPTIONAL_HOST_HEADER>"
+        },
+        "temperature": 0
+    },
+    "THINKING_CONFIG": {
+        "base_url": "http://<YOUR_LLM_API_BASE_URL>/v1",
+        "model_name": "<YOUR_THINKING_MODEL_NAME>",
+        "api_key": "<YOUR_API_KEY>",
+        "default_headers": {
+            "Host": "<OPTIONAL_HOST_HEADER>"
+        },
+        "temperature": 0
+    }
+}
