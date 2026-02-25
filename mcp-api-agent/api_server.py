@@ -149,10 +149,23 @@ async def openai_compatible_endpoint(request: Request):
         # OpenWebUI의 collapsible 기능을 위해 중간 과정들을 <think> 태그로 감쌉니다.
         has_started_thinking = False
         has_finished_thinking = False
-
         while True:
-            msg = await stream_queue.get()
-            
+            # 클라이언트 연결 끊김(새로고침, 중지버튼, 타임아웃 재시도 등) 감지
+            if await request.is_disconnected():
+                logger.warning("⚠️ [API] 클라이언트(OpenWebUI) 연결이 끊어졌습니다. 작업을 취소합니다.")
+                if graph_task and not graph_task.done():
+                    graph_task.cancel()
+                break
+
+            try:
+                # 5초마다 타임아웃을 발생시켜 빈 Ping(Keep-alive)을 보냅니다.
+                msg = await asyncio.wait_for(stream_queue.get(), timeout=5.0)
+            except asyncio.TimeoutError:
+                # OpenWebUI나 Proxy가 연결을 끊거나 재시도(Retry)하는 것을 막기 위해
+                # SSE 표준 주석(:)을 활용한 Keep-Alive 핑 전송
+                yield ": keep-alive\n\n"
+                continue
+
             if msg == "EOF":
                 # 만약 <think> 도중 끝났다면 닫아줌
                 if has_started_thinking and not has_finished_thinking:
