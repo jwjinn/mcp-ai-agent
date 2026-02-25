@@ -136,8 +136,8 @@ spec:
     spec:
       containers:
       - name: mcp-cli-agent
-        # 본인의 실제 Github Username과 저장소 이름으로 변경해주세요.
-        image: ghcr.io/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>-cli-agent:latest
+        # 본인의 실제 Github Username으로 변경해주세요.
+        image: ghcr.io/<YOUR_GITHUB_USERNAME>/mcp-api-agent:latest
         imagePullPolicy: Always
         stdin: true
         tty: true

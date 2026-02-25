@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}-cli-agent
+  IMAGE_NAME: mcp-api-agent
 
 jobs:
   build-and-push-image:
