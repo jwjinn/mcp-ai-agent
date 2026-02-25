@@ -158,12 +158,8 @@ spec:
           name: mcp-cli-agent-config
 ```
 
-Apply the manifest and attach to the Deployment's pod to interact with the CLI:
+Apply the manifest to your Kubernetes cluster:
 
 ```bash
 kubectl apply -f manifest.yaml
-
-# Find the deployed Pod name and attach to it
-export POD_NAME=$(kubectl get pods -n mcp -l app=mcp-cli-agent -o jsonpath='{.items[0].metadata.name}')
-kubectl attach -it $POD_NAME -n mcp
 ```

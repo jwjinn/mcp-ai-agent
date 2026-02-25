@@ -158,12 +158,8 @@ spec:
           name: mcp-cli-agent-config
 ```
 
-위 매니페스트를 적용하고 Deployment 내의 Pod에 접속하여 CLI 환경을 실행합니다:
+작성한 매니페스트를 쿠버네티스 클러스터에 적용합니다:
 
 ```bash
 kubectl apply -f manifest.yaml
-
-# 배포된 Pod의 이름을 확인하고 직접 접속(Attach)합니다.
-export POD_NAME=$(kubectl get pods -n mcp -l app=mcp-cli-agent -o jsonpath='{.items[0].metadata.name}')
-kubectl attach -it $POD_NAME -n mcp
 ```
