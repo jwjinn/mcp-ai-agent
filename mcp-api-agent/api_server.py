@@ -1,0 +1,176 @@
+import asyncio
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+import uvicorn
+from langchain_core.messages import HumanMessage
+import json
+
+import warnings
+# Pydantic 필드 이름 충돌 경고 무시
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+
+from config import MCP_SERVERS, logger
+from mcp_client import MCPClient
+from agent_graph import create_agent_app
+
+from contextlib import asynccontextmanager
+
+# FastAPI 앱의 생명주기(Lifecycle) 관리
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """서버 기동 시 초기화 및 종료 시 정리 로직"""
+    global agent_app, mcp_clients
+    
+    logger.info("🚀 [System] FastAPI 기반 MCP Agent 기동 시작...")
+    all_tools = []
+    
+    # 1. 기동 시: MCP 서버 연결 및 에이전트 초기화
+    for server_conf in MCP_SERVERS:
+        client = MCPClient(server_conf["name"], server_conf["url"])
+        try:
+            await client.connect()
+            mcp_clients.append(client)
+            all_tools.extend(client.tools)
+        except Exception as e:
+            logger.error(f"MCP Connection failed ({server_conf['name']}): {e}")
+            
+    if not mcp_clients:
+        logger.warning("❌ 연결된 서버가 없습니다. (도구 없이 초기화됩니다)")
+    else:
+        logger.info(f"✨ 총 {len(mcp_clients)}개 서버 연결 완료. (도구 {len(all_tools)}개 사용 가능)")
+        
+    # 에이전트 앱 생성
+    agent_app = create_agent_app(all_tools)
+    logger.info("✅ API Server: Agent initialized with tools.")
+    
+    yield  # 서버 실행 중 (이 시점에 요청을 받습니다)
+    
+    # 2. 종료 시: MCP 연결 정리
+    logger.info("🧹 연결 종료 중...")
+    for client in mcp_clients:
+        await client.cleanup()
+    logger.info("👋 Bye!")
+
+# FastAPI 앱 생성
+app = FastAPI(title="K8s MCP Agent API", lifespan=lifespan)
+
+# 전역 변수로 에이전트 앱과 클라이언트 관리
+agent_app = None
+mcp_clients = []
+
+# ========================================================
+# 자체 Web을 위한 일반 API 엔드포인트
+# ========================================================
+@app.post("/api/chat")
+async def chat_endpoint(request: Request):
+    """일반적인 자체 개발 웹페이지에서 호출하기 쉬운 모드"""
+    data = await request.json()
+    user_input = data.get("message", "")
+    
+    logger.info(f"User > {user_input}")
+    logger.debug("--- 🔄 처리 중... ---")
+    
+    # LangGraph 실행 및 최종 결과만 반환 (스트리밍이 아닐 경우)
+    inputs = {"messages": [HumanMessage(content=user_input)]}
+    result = await agent_app.ainvoke(inputs)
+    
+    # 결과 파싱하여 반환
+    final_message = result["messages"][-1].content
+    return {"reply": final_message}
+
+# ========================================================
+# OpenWebUI 연동을 위한 OpenAI 호환 API (스트리밍 지원)
+# ========================================================
+@app.post("/v1/chat/completions")
+async def openai_compatible_endpoint(request: Request):
+    """OpenWebUI 등 OpenAI 규격을 요구하는 클라이언트를 위한 엔드포인트"""
+    data = await request.json()
+    
+    # messages 배열에서 마지막 사용자의 질문을 추출
+    messages = data.get("messages", [])
+    user_input = messages[-1]["content"] if messages else ""
+    model_name = data.get("model", "qwen-k8s-agent")
+    
+    logger.info(f"[OpenWebUI] User > {user_input}")
+
+    async def stream_generator():
+        inputs = {"messages": [HumanMessage(content=user_input)]}
+        from config import stream_queue
+        
+        # 내부 진행 상황을 OpenWebUI에도 보여주기 위한 헬퍼 함수
+        def make_chunk(text):
+            chunk = {
+                "id": "chatcmpl-123",
+                "object": "chat.completion.chunk",
+                "model": model_name,
+                "choices": [{"index": 0, "delta": {"content": text}, "finish_reason": None}]
+            }
+            return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+        
+        # --- 복합 스트리밍 로직 ---
+        # 1. LangGraph의 astream 이벤트 스트림
+        # 2. 백그라운드 Worker의 진행 상태를 담는 stream_queue 
+        # 두 개를 동시에 기다리면서 먼저 나오는 데이터를 계속 전달해야 함.
+        
+        import asyncio
+        queue_task = None
+        graph_task = None
+        
+        # 큐에서 잔여/새 이벤트를 빼오는 코루틴 팩토리
+        async def get_queue_msg():
+            return await stream_queue.get()
+            
+        async def run_graph():
+            # astream은 async iterator이므로 리스트로 변환하기보다는 직접 처리
+            # 복잡도를 낮추기 위해 직접 순회하며 큐에 특수 시그널을 넣는 방식으로 래핑
+            async for event in agent_app.astream(inputs):
+                for key, value in event.items():
+                    if key == "router":
+                        await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...\n\n")
+                    elif key == "orchestrator":
+                        await stream_queue.put("EVENT:📋 `[System]` 작업 계획 수립 중...\n\n")
+                    elif key == "workers":
+                        results = value.get("worker_results", [])
+                        await stream_queue.put(f"EVENT:👷 `[System]` {len(results)}개 병렬 작업 실행 완료.\n\n---\n\n")
+                    elif key == "synthesizer" or key == "simple_agent":
+                        msg = value["messages"][-1].content
+                        await stream_queue.put(f"FINAL:{msg}")
+            
+            # 그래프 실행이 끝나면 종료 시그널 전송
+            await stream_queue.put("EOF")
+
+        # 그래프 실행을 백그라운드 Task로 시작
+        graph_task = asyncio.create_task(run_graph())
+        
+        # 메인 루프: 큐에서 계속 데이터를 꺼내 클라이언트로 보냄
+        while True:
+            msg = await stream_queue.get()
+            
+            if msg == "EOF":
+                break
+            elif msg.startswith("EVENT:"):
+                # 기본 Graph 상태 이벤트
+                yield make_chunk(msg.replace("EVENT:", "", 1))
+            elif msg.startswith("FINAL:"):
+                # 최종 결과 리턴
+                yield make_chunk(msg.replace("FINAL:", "", 1))
+            else:
+                # 🎈 서브 에이전트 요약 진행 상황 (⏳ running for ...s) 출력
+                # 그냥 넘기면 OpenWebUI 화면 상 이전 글씨에 붙어버리므로, 
+                # 보기 좋게 줄바꿈 추가
+                yield make_chunk(f"{msg}\n\n")
+                
+        # 스트리밍 종료
+        end_chunk = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion.chunk",
+            "model": model_name,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+        }
+        yield f"data: {json.dumps(end_chunk, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+if __name__ == "__main__":
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)

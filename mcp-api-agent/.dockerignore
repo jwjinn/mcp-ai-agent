@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.git
+.gitignore
+Dockerfile
+k8s-manifest.yaml
+MCP_Develop_History.md
+diag_mcp.py
+test_mcp_type.py
