@@ -53,8 +53,8 @@ export async function executeWorkflow({
 	}
 
 	const executionMemory: Record<string, ExecutionResult> = {};
-	const initialMessages = convertToModelMessages(messages);
-	const accumulatedMessages: ModelMessage[] = initialMessages;
+	const initialMessages = await convertToModelMessages(messages);
+	const accumulatedMessages: any[] = initialMessages;
 
 	let currentNodeId: string | null = startNode.id;
 	let previousNodeId: string = startNode.id;

@@ -13,7 +13,7 @@ export const Assistant = () => {
   const runtime = useChatRuntime({
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     transport: new AssistantChatTransport({
-      api: "/api/chat",
+      api: "/api/stream_chat",
     }),
   });
 

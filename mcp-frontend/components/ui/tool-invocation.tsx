@@ -40,24 +40,35 @@ export function ToolInvocationName({
 	name: string;
 	capitalize?: boolean;
 	type:
-		| "input-streaming"
-		| "input-available"
-		| "output-available"
-		| "output-error";
+	| "input-streaming"
+	| "input-available"
+	| "output-streaming"
+	| "output-available"
+	| "output-error"
+	| "approval-requested"
+	| "approval-responded"
+	| (string & {});
 	isError?: boolean;
 	className?: string;
 }) {
 	// Combine explicit error state with passed error flag
-	const hasError = type === "output-error" || isError;
+	const hasError =
+		type === "output-error" ||
+		type === "output-denied" ||
+		type.includes("error") ||
+		isError;
 
 	return (
 		<div className={cn("flex items-center gap-2 text-sm", className)}>
-			{(type === "input-streaming" || type === "input-available") && (
-				<ToolInvocationLoadingIcon
-					className="size-4 text-muted-foreground"
-					duration="2s"
-				/>
-			)}
+			{(type === "input-streaming" ||
+				type === "input-available" ||
+				type === "output-streaming" ||
+				type === "approval-requested") && (
+					<ToolInvocationLoadingIcon
+						className="size-4 text-muted-foreground"
+						duration="2s"
+					/>
+				)}
 			{type === "output-available" && !hasError && (
 				<CheckCircleIcon className="size-4 text-muted-foreground" />
 			)}
