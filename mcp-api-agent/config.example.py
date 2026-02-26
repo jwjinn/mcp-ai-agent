@@ -10,6 +10,7 @@ import sys
 LOG_LEVEL_STR = os.getenv("LOG_LEVEL", "INFO").upper()
 LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
 
+# 
 # 기본 로거 포맷 설정 (K8s 스트림에 맞게 표준 출력 사용)
 logging.basicConfig(
     stream=sys.stdout,
