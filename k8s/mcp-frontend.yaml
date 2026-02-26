@@ -35,7 +35,7 @@ spec:
   ports:
   - port: 80
     targetPort: 3000
-    # NodePort를 명시적으로 지정하거나 비워두어 자동 할당받을 수 있습니다.
-    # nodePort: 30080 
+    # 외부에서 접속할 포트를 30080으로 고정합니다.
+    nodePort: 30080
   selector:
     app: mcp-frontend
