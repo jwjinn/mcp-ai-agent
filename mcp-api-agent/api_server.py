@@ -79,6 +79,152 @@ async def chat_endpoint(request: Request):
     return {"reply": final_message}
 
 # ========================================================
+# 커스텀 React Flow 대시보드 연동을 위한 전용 SSE 스트리밍
+# ========================================================
+@app.post("/api/stream_chat")
+async def react_flow_stream_endpoint(request: Request):
+    """React Flow 기반의 2D 시각화 대시보드와 통신하기 위한 Vercel AI SDK Data Stream 호환 엔드포인트"""
+    data = await request.json()
+    messages = data.get("messages", [])
+    user_input = messages[-1]["content"] if messages else data.get("message", "")
+    
+    logger.info(f"[ReactFlow UI] User > {user_input}")
+
+    async def stream_generator():
+        inputs = {"messages": [HumanMessage(content=user_input)]}
+        from config import stream_queue
+        
+        # Vercel AI SDK 호환 Data Stream Chunk 생성 함수
+        def make_text_chunk(text: str):
+            return f'0:{json.dumps(text, ensure_ascii=False)}\n'
+            
+        def make_data_status(node_id: str, status: str, node_type: str = "agent", error: str = None):
+            data_obj = {
+                "type": "data-node-execution-status",
+                "data": {
+                    "nodeId": node_id,
+                    "nodeType": node_type,
+                    "status": status,
+                }
+            }
+            if error:
+                data_obj["data"]["error"] = error
+            return f'8:[{json.dumps(data_obj, ensure_ascii=False)}]\n'
+        
+        import asyncio
+        graph_task = None
+        
+        async def run_graph():
+            try:
+                # 초기 상태: Router 시작
+                await stream_queue.put(make_data_status("start", "success"))
+                await stream_queue.put(make_data_status("router", "running"))
+                
+                async for event in agent_app.astream(inputs):
+                    for key, value in event.items():
+                        if key == "router":
+                            await stream_queue.put(make_data_status("router", "success"))
+                        elif key == "orchestrator":
+                            await stream_queue.put(make_data_status("orchestrator", "running"))
+                        elif key == "workers":
+                            # 개별 이벤트(LogSpecialist 등)가 EVENT 큐로 들어오므로 여기서는 전역 상태만 관리
+                            await stream_queue.put(make_data_status("orchestrator", "success"))
+                        elif key == "synthesizer":
+                            await stream_queue.put(make_data_status("synthesizer", "running"))
+                        elif key == "simple_agent":
+                            await stream_queue.put(make_data_status("router", "success"))
+                            await stream_queue.put(make_data_status("simple_agent", "running"))
+                            msg = value["messages"][-1].content
+                            await stream_queue.put(make_data_status("simple_agent", "success"))
+                            await stream_queue.put(make_data_status("end", "success"))
+                            await stream_queue.put(make_text_chunk(msg))
+                            
+            except Exception as e:
+                logger.error(f"❌ [Graph] 실행 중 오류 발생: {e}")
+                await stream_queue.put(make_data_status("router", "error", error=str(e)))
+            finally:
+                await stream_queue.put("EOF")
+
+        graph_task = asyncio.create_task(run_graph())
+        import time
+        token_buffer = ""
+        last_flush = time.time()
+
+        while True:
+            if await request.is_disconnected():
+                logger.warning("⚠️ [API] 클라이언트 연결 끊김")
+                if graph_task and not graph_task.done():
+                    graph_task.cancel()
+                break
+
+            try:
+                msg = await asyncio.wait_for(stream_queue.get(), timeout=2.0)
+            except asyncio.TimeoutError:
+                if token_buffer:
+                    yield make_text_chunk(token_buffer)
+                    token_buffer = ""
+                    last_flush = time.time()
+                yield " \n"
+                continue
+
+            if msg == "EOF":
+                if token_buffer:
+                    yield make_text_chunk(token_buffer)
+                yield 'd:{"finishReason":"stop"}\n'
+                break
+                
+            elif msg.startswith("0:") or msg.startswith("8:"):
+                yield msg
+                
+            elif msg.startswith("TOKEN:"):
+                token_buffer += msg.replace("TOKEN:", "", 1)
+                now = time.time()
+                if now - last_flush >= 0.1:
+                    yield make_text_chunk(token_buffer)
+                    token_buffer = ""
+                    last_flush = now
+                    
+            elif msg.startswith("FINAL:"):
+                text = msg.replace("FINAL:", "", 1)
+                yield make_data_status("agent", "success")
+                yield make_data_status("end", "success")
+                yield make_text_chunk(text)
+
+            else:
+                if msg.startswith("EVENT:"):
+                    action_text = msg.replace("EVENT:", "", 1).strip()
+                    
+                    target_node = "tools" # Default
+                    if "LogSpecialist" in action_text:
+                        target_node = "worker_log"
+                    elif "MetricSpecialist" in action_text:
+                        target_node = "worker_metric"
+                    elif "K8sSpecialist" in action_text:
+                        target_node = "worker_k8s"
+                    elif "synthesizer" in action_text.lower():
+                        target_node = "synthesizer"
+                        
+                    # Tool completion usually has '완료' or '결과' in Korean logs
+                    if "완료" in action_text or "결과" in action_text:
+                        yield make_data_status(target_node, "success")
+                        if target_node == "synthesizer":
+                            yield make_data_status("end", "success")
+                    else:
+                        yield make_data_status(target_node, "running")
+                    
+                    yield make_text_chunk(f"[과정] {action_text}\n")
+
+    return StreamingResponse(
+        stream_generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+# ========================================================
 # OpenWebUI 연동을 위한 OpenAI 호환 API (스트리밍 지원)
 # ========================================================
 @app.post("/v1/chat/completions")

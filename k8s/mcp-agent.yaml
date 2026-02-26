@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-agent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-api-agent
+  namespace: mcp-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-api-agent
+  template:
+    metadata:
+      labels:
+        app: mcp-api-agent
+    spec:
+      containers:
+      - name: api-agent
+        image: ghcr.io/jwjinn/mcp-api-agent:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # config.py is auto-generated in Dockerfile from config.example.py
+        # If specific tokens are needed, they should be added as Secrets here.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-api-agent-svc
+  namespace: mcp-agent
+spec:
+  selector:
+    app: mcp-api-agent
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-frontend
+  namespace: mcp-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-frontend
+  template:
+    metadata:
+      labels:
+        app: mcp-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/jwjinn/mcp-frontend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: BACKEND_URL
+          value: "http://mcp-api-agent-svc:8000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-frontend-svc
+  namespace: mcp-agent
+spec:
+  type: LoadBalancer
+  selector:
+    app: mcp-frontend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 3000
