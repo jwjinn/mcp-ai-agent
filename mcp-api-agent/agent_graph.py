@@ -417,15 +417,12 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
     elif "K8sSpecialist" in worker_name:
         special_instructions = """
     [Kubernetes(k8s) 도구 가이드]
-    - **k8s_kubectl_get**: 리소스 목록을 조회합니다. (예: type='pods', namespace='default')
-      - **주의**: `labelSelector`에 `status=running` 같은 필드를 넣지 마세요. Status는 라벨이 아닙니다.
-      - **중요(버퍼 오버플로우 방지)**: `allNamespaces=True`를 사용하거나 클러스터 전체 리소스를 조회할 때는 반드시 데이터 폭주(ENOBUFS)를 막기 위해 **`output="name"`** 파라미터를 강제 적용하세요. 상세 정보가 필요하다면 먼저 `name`만 가져온 후 특정 리소스를 `describe`로 다시 조회하세요.
-      - **결과 해석(빈 값)**: 필터를 적용해서(예: `fieldSelector="status.phase=Failed"`) 조회했을 때 **빈 결과가 반환된다면 에러나 권한 부족이 아닙니다.** 그저 해당 조건을 만족하는 (에러가 난) 리소스가 없어 **클러스터가 건강하다는 뜻**으로 해석하세요.
-    - **k8s_kubectl_describe**: 특정 리소스의 상세 상태(Condition, Event 등)를 봅니다. (문제 해결의 핵심)
-    - **k8s_kubectl_logs**: 파드 로그를 봅니다. (Logs 전문가가 없을 때 사용)
-    - **k8s_k8s_diagnose**: 문제 진단을 돕는 특수 프롬프트 도구입니다.
+    - **k8s_kubectl_get**: 리소스 목록 조회. 필터(fieldSelector)를 적극 활용해 데이터를 최소화하세요.
+      - **중요**: 대량 조회 시 반드시 `output="name"`이나 `output="custom-columns=NAME:.metadata.name,STATUS:.status.phase"`를 써서 데이터 양을 아끼세요.
+    - **k8s_kubectl_events** (이벤트 조회): 에러 원인을 찾을 때 `describe`보다 가볍고 빠른 이벤트를 우선 조회하세요. (예: `kubectl get events --field-selector type=Warning`)
+    - **k8s_kubectl_describe**: 특정 단일 객체의 원인이 이벤트만으로 안 나올 때 최후의 수단으로만 사용하세요. (출력물이 너무 길어 시스템 속도를 크게 저하시킵니다)
     """
-
+    
     sys_msg = SystemMessage(content=f"""
     당신은 {worker_name}입니다.
     Orchestrator로부터 다음 지시를 받았습니다:
@@ -476,9 +473,13 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             raw_results = "\n\n".join(tool_outputs)
             
             # 토큰 절약을 위해 날것의 데이터가 너무 길면 여기서도 1차 절단 (비상용)
-            MAX_RAW_LENGTH = 15000
+            MAX_RAW_LENGTH = 8000
             if len(raw_results) > MAX_RAW_LENGTH:
-                raw_results = raw_results[:MAX_RAW_LENGTH] + "\n... (데이터 길어짐)"
+                if "K8sSpecialist" in worker_name:
+                    # K8s describe 결과는 맨 끝에 핵심인 'Events'가 있으므로 뒷부분 위주로 보존
+                    raw_results = raw_results[:2000] + "\n\n... (중략: 장황한 환경변수/볼륨 데이터 생략) ...\n\n" + raw_results[-6000:]
+                else:
+                    raw_results = raw_results[:MAX_RAW_LENGTH] + "\n... (데이터 길어짐)"
 
             summarize_prompt = f"""
             당신은 {worker_name}의 요약 담당자입니다.
@@ -494,10 +495,10 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             
             **[작업 지시]**
             1. 오직 위의 <instruction>에 답하는 데 필요한 핵심 팩트만 <raw_data>에서 추출하세요.
-            2. 발견된 에러 문구, 경고, 실패한 파드 이름, 리소스 수치 등은 **절대 누락하지 말고 포함**하세요.
-            3. 만약 <raw_data>에 이상 징후나 임무와 관련된 내용이 없다면 "해당 사항 없음" 또는 "모두 정상임"이라고 명확히 밝히세요.
-            4. 출력은 1,000자 이내로 최대한 마크다운 글머리 기호를 사용하여 간결하게 작성하세요.
-            5. **단, 에러의 근본 원인을 나타내는 핵심 Stack Trace 내용(`Exception`, `Caused by` 등)이나 에러 메시지 원문은 요약하지 말고 최대한 원본 그대로 보존해서 출력하세요.**
+            2. 발견된 에러 문구, 경고, 실패 파드 이름은 절대 누락하지 말고 보존하세요.
+            3. 문장을 길게 풀어서 설명하지 마시고, "1. API 파드 Pending" 처럼 극단적으로 짧은 개조식(Bullet points)으로 작성해주세요.
+            4. 출력 길이는 최대 1,000자를 넘지 않도록 짧게 대답하고 서론/결론 인사말은 모두 생략하세요.
+            5. 핵심 에러 원문(Stack Trace)만 예외적으로 그대로 붙여넣어 주세요.
             """
             
             logger.debug(f"   📝 [{worker_name}] 도구 결과 요약 중... (Sub-Agent Summarization)")
