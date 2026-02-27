@@ -478,6 +478,10 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
                 if "K8sSpecialist" in worker_name:
                     # K8s describe 결과는 맨 끝에 핵심인 'Events'가 있으므로 뒷부분 위주로 보존
                     raw_results = raw_results[:2000] + "\n\n... (중략: 장황한 환경변수/볼륨 데이터 생략) ...\n\n" + raw_results[-6000:]
+                elif "LogSpecialist" in worker_name:
+                    # 로그는 보통 최신 로그(뒷부분) 또는 첫 줄에 핵심이 있으나, 양이 너무 많으면 LLM이 뻗으므로
+                    # 속도 향상을 위해 4,000자로 더 과감하게 자릅니다. (어차피 API limit: 50으로 걸러짐)
+                    raw_results = raw_results[:4000] + "\n... (로그 데이터 길어짐, 이하 생략)"
                 else:
                     raw_results = raw_results[:MAX_RAW_LENGTH] + "\n... (데이터 길어짐)"
 
