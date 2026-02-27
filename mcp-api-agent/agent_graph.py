@@ -479,9 +479,9 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
                     # K8s describe 결과는 맨 끝에 핵심인 'Events'가 있으므로 뒷부분 위주로 보존
                     raw_results = raw_results[:2000] + "\n\n... (중략: 장황한 환경변수/볼륨 데이터 생략) ...\n\n" + raw_results[-6000:]
                 elif "LogSpecialist" in worker_name:
-                    # 로그는 보통 최신 로그(뒷부분) 또는 첫 줄에 핵심이 있으나, 양이 너무 많으면 LLM이 뻗으므로
-                    # 속도 향상을 위해 4,000자로 더 과감하게 자릅니다. (어차피 API limit: 50으로 걸러짐)
-                    raw_results = raw_results[:4000] + "\n... (로그 데이터 길어짐, 이하 생략)"
+                    # 너무 많이 자르면(4000자) 핵심 에러가 유실될 부작용이 있으므로,
+                    # 여유를 두고 8000자로 늘립니다. (대신 파이프라인에서 limit: 50 등으로 걸러진 상태를 가정)
+                    raw_results = raw_results[:8000] + "\n... (로그 데이터 길어짐, 이하 생략)"
                 else:
                     raw_results = raw_results[:MAX_RAW_LENGTH] + "\n... (데이터 길어짐)"
 
@@ -500,8 +500,8 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             **[작업 지시]**
             1. 오직 위의 <instruction>에 답하는 데 필요한 핵심 팩트만 <raw_data>에서 추출하세요.
             2. 발견된 에러 문구, 경고, 실패 파드 이름은 절대 누락하지 말고 보존하세요.
-            3. 문장을 길게 풀어서 설명하지 마시고, "1. API 파드 Pending" 처럼 극단적으로 짧은 개조식(Bullet points)으로 작성해주세요.
-            4. 출력 길이는 최대 1,000자를 넘지 않도록 짧게 대답하고 서론/결론 인사말은 모두 생략하세요.
+            3. 문장을 엄청 길게 풀어서 설명하지 마시고, "1. API 파드 Pending" 처럼 가독성이 좋은 개조식(Bullet points)으로 작성해주세요.
+            4. 출력 길이는 충분한 장애 진단 정보 제공을 위해 최대 **2,000자**까지 허용합니다. 단, 인사말(서론/결론)은 생략하세요.
             5. 핵심 에러 원문(Stack Trace)만 예외적으로 그대로 붙여넣어 주세요.
             """
             
