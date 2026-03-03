@@ -14,6 +14,16 @@ Notably, it supports a dual LLM environment: a **Thinking Model** for deep reaso
 
 ---
 
+## 📺 Demo Video
+
+<div align="center">
+  <a href="https://youtu.be/isRjLnMHajs">
+    <img src="https://img.youtube.com/vi/isRjLnMHajs/maxresdefault.jpg" width="80%" alt="MCP AI Agent Demo">
+  </a>
+</div>
+
+---
+
 ## 📖 Comprehensive Guide for Beginners & Contributors (Must Read!)
 
 Are you new to this project? Wondering how the code works or why we chose this architecture?

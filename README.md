@@ -14,7 +14,17 @@
 
 ---
 
-## 📖 초보자 및 기여자를 위한 완벽 가이드 (필독!)
+## � 데모 영상 (Demo Video)
+
+<div align="center">
+  <a href="https://youtu.be/isRjLnMHajs">
+    <img src="https://img.youtube.com/vi/isRjLnMHajs/maxresdefault.jpg" width="80%" alt="MCP AI Agent Demo">
+  </a>
+</div>
+
+---
+
+## �📖 초보자 및 기여자를 위한 완벽 가이드 (필독!)
 
 프로젝트의 전체 흐름, 병렬 처리 아키텍처 원리, 그리고 코드가 어떻게 유기적으로 동작하는지 궁금하신가요? 
 **초보자분들을 위해 아주 쉽고 친절한 동화책 같은 문서(Paper) 세트를 준비했습니다!** 아래 순서대로 읽어보시는 것을 강력히 권장합니다.
