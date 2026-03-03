@@ -6,150 +6,41 @@
 
 [English version](README_en.md) | [한국어버전](README.md)
 
-## Introduction
+## 🌟 Introduction
 
-**MCP AI Agent**는 LangGraph 기반의 AI 워크플로우와 **Model Context Protocol (MCP)**를 결합한 지능형 마이크로서비스 및 인프라 오케스트레이션 미들웨어입니다. 이 에이전트는 사용자와의 자연어 대화를 통해 쿠버네티스(Kubernetes) 클러스터, 로그 통합 시스템, 가상 머신(VM) 등의 다양한 백엔드 엔드포인트 도구들을 자율적으로 제어하고 진단할 수 있습니다.
+**MCP AI Agent**는 LangGraph 기반의 AI 워크플로우와 **Model Context Protocol (MCP)**를 결합한 지능형 마이크로서비스 및 인프라 오케스트레이션 미들웨어입니다.
 
-특히, 이중 LLM 모델 환경(**Thinking Model**을 활용한 깊은 추론 및 계획 세우기와 **Instruct Model**을 활용한 빠르고 정확한 도구 실행)을 지원하여, 기존의 단순한 대시보드를 넘어서는 자동화된 인프라 AIOps(Artificial Intelligence for IT Operations) 솔루션을 제공합니다.
+기존의 답답하고 수동적인 모니터링 대시보드를 넘어, 대화 한 번으로 쿠버네티스 장애 원인을 꿰뚫어 보는 **혁신적인 AIOps(Artificial Intelligence for IT Operations) 솔루션**입니다.
 
-## Architecture
+## 📖 초보자 및 기여자를 위한 완벽 가이드 (필독!)
 
-이 프로젝트는 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션(`mcp-api-agent/`)을 메인으로 제공합니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
+이 프로젝트에 처음 오셨나요? 코드가 어떻게 돌아가는지, 왜 이런 아키텍처를 만들었는지 궁금하신가요? 
 
-### Supported MCP Servers (지원 도구)
-에이전트는 다음과 같은 여러 개의 MCP 서버와 동적으로 연결되어 작업합니다:
-- **k8s**: 쿠버네티스 클러스터 자원 관리 (Pod 배포, 스케줄링 현황 조회, 삭제 등)
-- **VictoriaLog**: 컨테이너 로그 조회 및 시스템 로그 분석
-- **VictoriaMetrics**: 가상 머신 프로비저닝 상태 관리
-- **VictoriaTrace**: 분산 트레이싱 기록 조회 및 병목 구간 성능 파악
+**저희가 초보자분들을 위해 아주 쉽고 친절한 동화책 같은 문서(Paper) 세트를 준비했습니다!** 아래 순서대로 읽어보시는 것을 강력히 권장합니다.
 
-## Prerequisites
+👉 **[1. 배경 및 도입 목적 알아보기 (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**
+- 왜 단순한 ChatGPT로는 인프라 진단을 못 하는지, 우리가 겪은 3가지 끔찍한 문제와 해결책을 아주 쉽게 설명합니다.
 
-오픈소스 환경에서 직접 실행해보기 위해 다음 항목들이 필요합니다:
-- Python >= 3.10
-- (API 버전의 경우) Docker 및 Kubernetes (>= 1.20)
-- 활용 가능한 LLM Endpoint (ex. OpenAI 호환 API 지원 모델, 커스텀 모델 등)
+👉 **[2. 핵심 아키텍처 원리 (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**
+- 팀장, 요약 요정, 셜록 홈즈? 재미있는 다이어그램과 함께 이 AI 비서들이 어떻게 "동시에" 협력해서 진단하는지 구경하세요!
 
-## Quick Start
+👉 **[3. 코드 투어 (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**
+- 방금 본 아키텍처가 실제 파이썬 코드(`agent_graph.py`, `api_server.py`)로 어떻게 구현되어 있는지 옆에서 과외하듯 훑어줍니다.
 
-### 1. Configuration Setup (설정 파일 구성)
-기본적인 레포지토리를 클론받은 후, 사용자의 환경에 맞게 제공된 템플릿 파일에서 IP 주소 및 API Key를 교체합니다.
+👉 **[4. 실전! 내 컴퓨터에서 돌려보기 (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
+- 이론은 끝났습니다! 파이썬 가상환경 셋팅부터 실제 터미널을 열고 질문을 던져보는 가장 꼼꼼한 튜토리얼입니다.
 
-```bash
-# FastAPI 설정 복사
-cp mcp-api-agent/config.example.py mcp-api-agent/config.py
-cp mcp-api-agent/config.example.json mcp-api-agent/config.json
-```
-
-### 2. Local PC Testing (FastAPI 로컬 환경 테스트)
-가장 빠르게 에이전트의 워크플로우를 동작 확인하는 방법입니다. 
-
-1. **Python 가상환경(Conda 등) 구성 및 의존성 추가**
-```bash
-# Conda 환경 생성 및 활성화
-conda create -n mcp-agent python=3.11
-conda activate mcp-agent
-
-cd mcp-api-agent
-pip install -r requirements_api.txt
-```
-
-2. **설정 파일(config.json) 작성**
-미리 복사해 둔 `config.json` 파일 내의 `MCP_SERVERS` URL을 **쿠버네티스의 NodePort 주소**로 변경합니다.
-```json
-// mcp-api-agent/config.json 수정 예시
-"MCP_SERVERS": [
-    {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-    {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-]
-```
-
-3. **에이전트 API 서버 실행**
-```bash
-uvicorn api_server:app --host 0.0.0.0 --port 8000
-```
-
-### 3. Deploying via GHCR (Kubernetes 배포)
-실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-api-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
-
-아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트를 작성하여 쿠버네티스에서 안정적으로 실행하세요.
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mcp-api-agent-config
-  namespace: mcp
-  labels:
-    app: mcp-api-agent
-data:
-  config.json: |
-    {
-      "MCP_SERVERS": [
-        {"name": "k8s",             "url": "http://mcp-k8s-svc.mcp/sse"},
-        {"name": "VictoriaLog",     "url": "http://mcp-vlogs-svc.mcp/sse"},
-        {"name": "VictoriaMetrics", "url": "http://mcp-vm-svc.mcp/sse"},
-        {"name": "VictoriaTrace",   "url": "http://mcp-vtraces-svc.mcp/sse"}
-      ],
-      "INSTRUCT_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
-        "model_name": "qwen-custom",
-        "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-instruct.example.com"},
-        "temperature": 0
-      },
-      "THINKING_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
-        "model_name": "qwen-thinking",
-        "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-thinking.example.com"},
-        "temperature": 0
-      }
-    }
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mcp-api-agent-deployment
-  namespace: mcp
-  labels:
-    app: mcp-api-agent
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mcp-api-agent
-  template:
-    metadata:
-      labels:
-        app: mcp-api-agent
-    spec:
-      containers:
-      - name: mcp-api-agent
-        # 생성된 공식 패키지 이미지를 사용합니다.
-        image: ghcr.io/jwjinn/mcp-api-agent:latest
-        imagePullPolicy: Always
-        env:
-        - name: LANGCHAIN_TRACING_V2
-          value: "true"
-        - name: LOG_LEVEL
-          value: "INFO"
-        - name: CONFIG_FILE_PATH
-          value: "/app/config/config.json"
-        volumeMounts:
-        - name: config-volume
-          mountPath: /app/config
-          readOnly: true
-        ports:
-        - containerPort: 8000
-      volumes:
-      - name: config-volume
-        configMap:
-          name: mcp-api-agent-config
-```
 
-작성한 매니페스트를 쿠버네티스 클러스터에 적용합니다:
+## ⚡ 시니어 및 코어 개발자를 위한 딥-다이브 (Advanced Docs)
 
-```bash
-kubectl apply -f manifest.yaml
-```
+단순한 튜토리얼을 넘어 **LangGraph의 상태 제어, 메모리 최적화, 비동기 병렬 처리, 그리고 동적 메타프로그래밍**의 정수를 맛보고 싶으시다면 프로젝트 루트의 `advanced_docs/` 디렉토리를 열어보세요.
+
+*   🧠 **[1. State Management & Graph Lifecycle](advanced_docs/1_STATE_MANAGEMENT_AND_GRAPH.md)**: AgentState의 Reducer 설계와 토큰 윈도우 폭발을 막는 Smart Sliding Window 알고리즘.
+*   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE.md)**: `asyncio.gather`를 통한 O(1) 통신 최적화와 Sub-Agent 필터링 기법.
+*   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING.md)**: `pydantic.create_model`을 이용한 런타임 스키마 직조(Metaprogramming) 메커니즘.
+*   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING.md)**: 완벽한 JSON 파싱을 위한 Instruct 모델 강제화 및 무한 루프(Hallucination) 차단 튜닝.
+
+---
+
+> 과거 개발 프로세스, 트러블슈팅 이력 및 쿠버네티스 YAML 배포에 관한 심화 내용은 `mcp-api-agent/MCP_Develop_History.md`를 참고해 주시고, 영문 문서는 `README_en.md`를 확인하세요.

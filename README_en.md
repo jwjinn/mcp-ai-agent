@@ -6,150 +6,41 @@
 
 [English version](README_en.md) | [한국어버전](README.md)
 
-## Introduction
+## 🌟 Introduction
 
-**MCP AI Agent** is an intelligent microservice and infrastructure orchestration middleware that combines LangGraph-based AI workflows with the **Model Context Protocol (MCP)**. This agent allows users to autonomously control and diagnose various backend endpoint tools—such as Kubernetes clusters, unified logging systems, and Virtual Machines (VMs)—through natural language conversations.
+**MCP AI Agent** is an intelligent microservice and infrastructure orchestration middleware that combines LangGraph-based AI workflows with the **Model Context Protocol (MCP)**. 
 
-Notably, it supports a dual LLM environment: a **Thinking Model** for deep reasoning and planning, and an **Instruct Model** for fast and precise tool execution. This provides an automated AIOps (Artificial Intelligence for IT Operations) solution that goes far beyond traditional static dashboards.
+Moving beyond frustrating, manual monitoring dashboards, this is an **innovative AIOps (Artificial Intelligence for IT Operations) solution** that pierces through the root causes of Kubernetes failures with a single conversation.
 
-## Architecture
+## 📖 Comprehensive Guide for Beginners & Contributors (Must Read!)
 
-This project primarily provides a FastAPI-based backend application (`mcp-api-agent/`) designed for production environments to communicate with remote Web UIs or other services. It supports Server-Sent Events (SSE) streaming for monitoring dashboards and is fully ready for Docker/Kubernetes deployment.
+Are you new to this project? Wondering how the code works or why we chose this architecture?
 
-### Supported MCP Servers
-The agent dynamically connects and operates with several MCP servers as follows:
-- **k8s**: Kubernetes cluster resource management (Pod deployment, scheduling status lookups, deletions, etc.)
-- **VictoriaLog**: Container log retrieval and system log analysis
-- **VictoriaMetrics**: Virtual machine provisioning status management
-- **VictoriaTrace**: Distributed tracing record retrieval and bottleneck performance identification
+**We've prepared a highly accessible, story-like set of "Paper" documents for beginners!** We strongly recommend reading them in the following order:
 
-## Prerequisites
+👉 **[1. Background and Why (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**
+- Discover why a simple ChatGPT model cannot diagnose infrastructure, and read about the 3 critical problems we faced and how we solved them in plain English.
 
-To run the agent directly in an open-source environment, you will need:
-- Python >= 3.10
-- Docker and Kubernetes (>= 1.20) (for the API version)
-- An available LLM Endpoint (e.g., OpenAI-compatible API supported models, custom models, etc.)
+👉 **[2. Core Architecture (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**
+- Team Leader, Summary Fairy, Sherlock Holmes? Check out how these AI assistants cooperate "concurrently" to diagnose issues, complete with fun Mermaid diagrams!
 
-## Quick Start
+👉 **[3. Code Walkthrough (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**
+- A guided tour of how the architecture you just saw is actually implemented in Python (`agent_graph.py`, `api_server.py`) step-by-step.
 
-### 1. Configuration Setup
-After cloning the repository, replace the IP addresses and API Keys in the provided template files to match your environment.
+👉 **[4. How to Start and Test (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
+- Enough theory! This is the most detailed tutorial on setting up a Python virtual environment, configuring `config.json`, launching the FastAPI server, and testing it with real prompts.
 
-```bash
-# Copy FastAPI version configuration
-cp mcp-api-agent/config.example.py mcp-api-agent/config.py
-cp mcp-api-agent/config.example.json mcp-api-agent/config.json
-```
-
-### 2. Local PC Testing
-The fastest way to verify the agent's API server locally.
-
-1. **Set up a Python Virtual Environment (e.g., Conda) and Install Dependencies**
-```bash
-# Create and activate a Conda environment
-conda create -n mcp-agent python=3.11
-conda activate mcp-agent
-
-cd mcp-api-agent
-pip install -r requirements_api.txt
-```
-
-2. **Configure Settings (config.json)**
-Modify the `MCP_SERVERS` URLs in your previously copied `config.json` to point to the **Kubernetes NodePort** addresses.
-```json
-// mcp-api-agent/config.json modification example
-"MCP_SERVERS": [
-    {"name": "k8s",             "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-    {"name": "VictoriaLog",     "url": "http://<K8S_NODE_IP>:<NODE_PORT>/sse"},
-]
-```
-
-3. **Run the API Server**
-```bash
-uvicorn api_server:app --host 0.0.0.0 --port 8000
-```
-
-### 3. Deploying via GHCR (Kubernetes)
-For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The API Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-api-agent` directory.
-
-You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mcp-api-agent-config
-  namespace: mcp
-  labels:
-    app: mcp-api-agent
-data:
-  config.json: |
-    {
-      "MCP_SERVERS": [
-        {"name": "k8s",             "url": "http://mcp-k8s-svc.mcp/sse"},
-        {"name": "VictoriaLog",     "url": "http://mcp-vlogs-svc.mcp/sse"},
-        {"name": "VictoriaMetrics", "url": "http://mcp-vm-svc.mcp/sse"},
-        {"name": "VictoriaTrace",   "url": "http://mcp-vtraces-svc.mcp/sse"}
-      ],
-      "INSTRUCT_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
-        "model_name": "qwen-custom",
-        "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-instruct.example.com"},
-        "temperature": 0
-      },
-      "THINKING_CONFIG": {
-        "base_url": "http://127.0.0.1:80/v1",
-        "model_name": "qwen-thinking",
-        "api_key": "EMPTY",
-        "default_headers": {"Host": "qwen-thinking.example.com"},
-        "temperature": 0
-      }
-    }
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mcp-api-agent-deployment
-  namespace: mcp
-  labels:
-    app: mcp-api-agent
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mcp-api-agent
-  template:
-    metadata:
-      labels:
-        app: mcp-api-agent
-    spec:
-      containers:
-      - name: mcp-api-agent
-        # Using the official published package image
-        image: ghcr.io/jwjinn/mcp-api-agent:latest
-        imagePullPolicy: Always
-        env:
-        - name: LANGCHAIN_TRACING_V2
-          value: "true"
-        - name: LOG_LEVEL
-          value: "INFO"
-        - name: CONFIG_FILE_PATH
-          value: "/app/config/config.json"
-        volumeMounts:
-        - name: config-volume
-          mountPath: /app/config
-          readOnly: true
-        ports:
-        - containerPort: 8000
-      volumes:
-      - name: config-volume
-        configMap:
-          name: mcp-api-agent-config
-```
 
-Apply the manifest to your Kubernetes cluster:
+## ⚡ Deep-Dive for Senior & Core Developers (Advanced Docs)
 
-```bash
-kubectl apply -f manifest.yaml
-```
+If you want to go beyond the tutorial and taste the essence of **LangGraph state control, memory optimization, asynchronous parallel processing, and dynamic metaprogramming**, open the `advanced_docs/` directory at the project root.
+
+*   🧠 **[1. State Management & Graph Lifecycle](advanced_docs/1_STATE_MANAGEMENT_AND_GRAPH.md)**: AgentState Reducer design and the Smart Sliding Window algorithm to prevent Token Window overflow.
+*   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE.md)**: O(1) communication optimization via `asyncio.gather` and Sub-Agent filtering techniques.
+*   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING.md)**: Runtime schema weaving (Metaprogramming) mechanisms using `pydantic.create_model`.
+*   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING.md)**: Forcing Instruct models for perfect JSON parsing and defense tuning against infinite loops (Hallucination).
+
+---
+
+> For in-depth information regarding past development processes, troubleshooting history, and Kubernetes YAML deployment, please refer to `mcp-api-agent/MCP_Develop_History.md`.
