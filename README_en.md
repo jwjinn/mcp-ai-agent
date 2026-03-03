@@ -19,9 +19,9 @@ Notably, it supports a dual LLM environment: a **Thinking Model** for deep reaso
 Are you new to this project? Wondering how the code works or why we chose this architecture?
 **We've prepared a highly accessible, story-like set of "Paper" documents for beginners!** We strongly recommend reading them in the following order:
 
-👉 **[1. Background and Why (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**
-👉 **[2. Core Architecture (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**
-👉 **[3. Code Walkthrough (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**
+👉 **[1. Background and Why (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**  
+👉 **[2. Core Architecture (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**  
+👉 **[3. Code Walkthrough (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**  
 👉 **[4. How to Start and Test (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
 
 ## ⚡ Deep-Dive for Senior & Core Developers (Advanced Docs)

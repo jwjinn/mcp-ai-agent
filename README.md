@@ -19,9 +19,9 @@
 프로젝트의 전체 흐름, 병렬 처리 아키텍처 원리, 그리고 코드가 어떻게 유기적으로 동작하는지 궁금하신가요? 
 **초보자분들을 위해 아주 쉽고 친절한 동화책 같은 문서(Paper) 세트를 준비했습니다!** 아래 순서대로 읽어보시는 것을 강력히 권장합니다.
 
-👉 **[1. 배경 및 도입 목적 알아보기 (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**
-👉 **[2. 핵심 아키텍처 원리 (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**
-👉 **[3. 코드 투어 (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**
+👉 **[1. 배경 및 도입 목적 알아보기 (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**  
+👉 **[2. 핵심 아키텍처 원리 (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**  
+👉 **[3. 코드 투어 (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**  
 👉 **[4. 실전! 내 컴퓨터에서 돌려보기 (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
 
 ## ⚡ 시니어 및 코어 개발자를 위한 딥-다이브 (Advanced Docs)
