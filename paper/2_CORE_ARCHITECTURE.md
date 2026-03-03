@@ -129,15 +129,15 @@ flowchart TD
 
 사실 이 똑똑한 조직도는 단순히 감으로 만들어진 것이 아닙니다. 최근 세계적으로 뜨거운 **최신 대형 언어 모델(SOTA LLM) 에이전트 논문들의 정수(핵심 아이디어)**를 AIOps 도메인에 완벽하게 맞춤 조립(Custom-fit)한 결과물입니다.
 
-*   **1️⃣ HuggingGPT (Microsoft, 2023) - "전문가 위임 패턴"**
+*   **1️⃣ [HuggingGPT (Microsoft, 2023)](https://arxiv.org/abs/2303.17580) - "전문가 위임 패턴"**
     *   **논문 내용**: 대형 LLM 모델이 복잡한 요청을 분석해 여러 하위 태스크로 쪼개고, 각 전문 모델들에게 나눠준 뒤 결과를 취합하는 "Plan-and-Solve" 패턴의 시초격 논문입니다.
     *   **우리 코드의 적용점**: `Router`와 `Orchestrator`가 작업을 쪼개고, 각기 다른 도구를 다루는 전문 `Workers (Log, Metric, K8s)`에게 임무를 위임하는 전체적인 구조가 바로 이 논문의 철학을 따릅니다.
 
-*   **2️⃣ LLMCompiler (UC Berkeley, 2023) - "어셈블리 라인 병렬화"**
+*   **2️⃣ [LLMCompiler (UC Berkeley, 2023)](https://arxiv.org/abs/2312.04511) - "어셈블리 라인 병렬화"**
     *   **논문 내용**: 이전에는 도구 1번 쓰고 기다렸다가 2번을 쓰는 직렬(Sequential) 구조 때문에 느렸습니다. 이 논문은 컴파일러처럼 실행 계획(DAG)을 짜고 서로 의존성이 없는 도구들을 **동시에 병렬(Parallel) 실행**시켜버립니다.
     *   **우리 코드의 적용점**: 우리의 `Orchestrator`가 JSON 지시서를 뿌리면, 여러 워커들이 **`asyncio.gather`를 통해 동시에(Parallel Execution) 서버에 질의**를 날리는 폭발적인 스피드의 비결입니다!
 
-*   **3️⃣ ReWOO (2023) - "사고(Reasoning)와 관찰(Observation)의 분리"**
+*   **3️⃣ [ReWOO (2023)](https://arxiv.org/abs/2305.18323) - "사고(Reasoning)와 관찰(Observation)의 분리"**
     *   **논문 내용**: 에이전트가 도구를 쓸 때마다 생각과 데이터를 섞으면 토큰이 터지는(Context Overflow) 현상을 막기 위해, 단순 작업자(Worker)는 뇌를 비우고 데이터만 가져오게 하고, 똑똑한 모델이 마지막에 취합하는 구조를 제안했습니다.
     *   **우리 코드의 적용점**: 이 시스템의 핵심 자산인 `Sub-Agent Summarizer (요약 요정)`가 바로 이 역할입니다. 워커들은 스스로 복잡한 판단을 하지 않고 오직 데이터에서 핵심만 뽑아 단기 요약(Map)을 한 뒤 셜록 홈즈(`Synthesizer`)에게 바칩니다.
 
