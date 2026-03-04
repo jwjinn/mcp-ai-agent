@@ -38,13 +38,13 @@ Are you new to this project? Wondering how the code works or why we chose this a
 
 If you want to go beyond the tutorial and taste the essence of **LangGraph state control, memory optimization, asynchronous parallel processing, and dynamic metaprogramming**, open the `advanced_docs/` directory at the project root.
 
-*   🧠 **[1. State Management & Graph Lifecycle](advanced_docs/1_STATE_MANAGEMENT_AND_GRAPH.md)**: AgentState Reducer design and the Smart Sliding Window algorithm to prevent Token Window overflow.
-*   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE.md)**: O(1) communication optimization via `asyncio.gather` and Sub-Agent filtering techniques.
-*   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING.md)**: Runtime schema weaving (Metaprogramming) mechanisms using `pydantic.create_model`.
-*   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING.md)**: Forcing Instruct models for perfect JSON parsing and defense tuning against infinite loops (Hallucination).
-*   🔍 **[5. Code Walkthrough](code_advanced_docs/1_code_walkthrough.md)**: A complete anatomy of the LangGraph orchestration components, from Router to Synthesizer.
-*   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive.md)**: Analysis of hidden raw prompts per node, loop prevention, and Truncation protection mechanisms.
-*   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow.md)**: A perfect variable tracking and function call-stack flow chart following the actual code.
+*   🧠 **[1. State Management & Graph Lifecycle](advanced_docs/1_STATE_MANAGEMENT_AND_GRAPH_en.md)**: AgentState Reducer design and the Smart Sliding Window algorithm to prevent Token Window overflow.
+*   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE_en.md)**: O(1) communication optimization via `asyncio.gather` and Sub-Agent filtering techniques.
+*   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING_en.md)**: Runtime schema weaving (Metaprogramming) mechanisms using `pydantic.create_model`.
+*   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING_en.md)**: Forcing Instruct models for perfect JSON parsing and defense tuning against infinite loops (Hallucination).
+*   🔍 **[5. Code Walkthrough](code_advanced_docs/1_code_walkthrough_en.md)**: A complete anatomy of the LangGraph orchestration components, from Router to Synthesizer.
+*   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive_en.md)**: Analysis of hidden raw prompts per node, loop prevention, and Truncation protection mechanisms.
+*   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow_en.md)**: A perfect variable tracking and function call-stack flow chart following the actual code.
 
 ---
 
