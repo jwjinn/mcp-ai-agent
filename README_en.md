@@ -42,6 +42,9 @@ If you want to go beyond the tutorial and taste the essence of **LangGraph state
 *   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE.md)**: O(1) communication optimization via `asyncio.gather` and Sub-Agent filtering techniques.
 *   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING.md)**: Runtime schema weaving (Metaprogramming) mechanisms using `pydantic.create_model`.
 *   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING.md)**: Forcing Instruct models for perfect JSON parsing and defense tuning against infinite loops (Hallucination).
+*   🔍 **[5. Code Walkthrough](advanced_docs/1_code_walkthrough.md)**: A complete anatomy of the LangGraph orchestration components, from Router to Synthesizer.
+*   🛠️ **[6. System Architecture & Prompts Deep-Dive](advanced_docs/2_system_architecture_deep_dive.md)**: Analysis of hidden raw prompts per node, loop prevention, and Truncation protection mechanisms.
+*   🔬 **[7. Detailed Code Execution Flow](advanced_docs/3_detailed_code_execution_flow.md)**: A perfect variable tracking and function call-stack flow chart following the actual code.
 
 ---
 

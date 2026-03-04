@@ -42,6 +42,9 @@
 *   ⚡ **[2. Parallel Workers & Map-Reduce Architecture](advanced_docs/2_PARALLEL_WORKERS_AND_MAP_REDUCE.md)**: `asyncio.gather`를 통한 O(1) 통신 최적화와 Sub-Agent 필터링 기법.
 *   🔌 **[3. MCP Dynamic Schema Binding](advanced_docs/3_MCP_CLIENT_DYNAMIC_BINDING.md)**: `pydantic.create_model`을 이용한 런타임 스키마 직조(Metaprogramming) 메커니즘.
 *   🎭 **[4. LLM Tuning & Prompt Engineering](advanced_docs/4_LLM_TUNING_AND_PROMPT_ENGINEERING.md)**: 완벽한 JSON 파싱을 위한 Instruct 모델 강제화 및 무한 루프(Hallucination) 차단 튜닝.
+*   🔍 **[5. Code Walkthrough (상세 구조 투어)](advanced_docs/1_code_walkthrough.md)**: Router부터 Synthesizer까지 LangGraph 오케스트레이션 구성요소 완전 해부.
+*   🛠️ **[6. System Architecture & Prompts Deep-Dive](advanced_docs/2_system_architecture_deep_dive.md)**: 노드별 숨겨진 프롬프트 원문과 무한 루프, Truncation 보호 메커니즘 분석.
+*   🔬 **[7. Detailed Code Execution Flow](advanced_docs/3_detailed_code_execution_flow.md)**: 실제 코드를 따라가는 완벽한 변수 추적 및 함수 콜스택 흐름도.
 
 ---
 
