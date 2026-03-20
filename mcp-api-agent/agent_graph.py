@@ -465,6 +465,8 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
         return f"[{worker_name}] 실행 안 함 (지시 없음 또는 도구 없음)"
         
     logger.info(f"👷 [{worker_name}] 시작: {instruction}")
+    from config import stream_queue
+    await stream_queue.put(f"EVENT:👷 [{worker_name}] 시작: {instruction}")
     
     # Worker는 빠르고 정확한 Instruct 모델 사용
     llm = get_instruct_model()
@@ -639,7 +641,6 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             
             import time
             import asyncio
-            from config import stream_queue
             start_time = time.time()
             
             async def poll_progress(coro):
@@ -729,6 +730,8 @@ async def synthesizer_node(state: AgentState):
     """[Synthesizer] Thinking 모델이 도구 실행 결과를 종합하여 최종 답변을 작성합니다."""
     # 스트리밍 끔 (안정성)
     thinking_llm = get_thinking_model(stream_prefix="📝 [Synthesizing]")
+    from config import stream_queue
+    await stream_queue.put("EVENT:📝 [Synthesizer] 최종 종합 시작")
     
     # [최적화] 진단 우선순위 재정렬 및 균등 배분(Fair Share)
     # K8s(기본 상태) -> Metric(현상) -> Log(상세 원인) 순서로 중요도 배치

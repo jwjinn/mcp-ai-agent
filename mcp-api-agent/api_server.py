@@ -15,39 +15,95 @@ from agent_graph import create_agent_app
 
 from contextlib import asynccontextmanager
 
+
+STREAM_NODE_IDS = [
+    "start",
+    "router",
+    "simple_agent",
+    "orchestrator",
+    "worker_k8s",
+    "worker_metric",
+    "worker_log",
+    "synthesizer",
+    "agent",
+    "end",
+]
+
+
+def collect_all_tools(clients_dict):
+    all_tools = []
+    for client in clients_dict.values():
+        all_tools.extend(client.tools)
+    return all_tools
+
+
+async def rebuild_agent_app(reason: str):
+    global agent_app
+    all_tools = collect_all_tools(mcp_clients)
+    agent_app = create_agent_app(all_tools)
+    logger.info(
+        f"🔁 [System] MCP tool set 갱신 완료 ({reason}) - 서버 {len(mcp_clients)}개, 도구 {len(all_tools)}개 사용 가능"
+    )
+
+
+async def reconcile_mcp_clients():
+    while True:
+        await asyncio.sleep(5)
+        for server_conf in MCP_SERVERS:
+            name = server_conf["name"]
+            client = mcp_clients.get(name)
+            if client and client.session:
+                continue
+
+            logger.warning(f"🔄 [System] MCP 서버 누락 감지: {name}. 백그라운드 재연결을 시도합니다.")
+            reconnect_client = client or MCPClient(name, server_conf["url"])
+            try:
+                await reconnect_client.connect(purpose="background reconcile", retries=1)
+                mcp_clients[name] = reconnect_client
+                await rebuild_agent_app(reason=f"background reconcile: {name}")
+            except Exception as e:
+                logger.warning(f"⚠️ [System] MCP 백그라운드 재연결 실패 ({name}): {e}")
+
 # FastAPI 앱의 생명주기(Lifecycle) 관리
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """서버 기동 시 초기화 및 종료 시 정리 로직"""
-    global agent_app, mcp_clients
+    global agent_app, mcp_clients, mcp_reconcile_task
     
     logger.info("🚀 [System] FastAPI 기반 MCP Agent 기동 시작...")
-    all_tools = []
+    mcp_clients = {}
     
     # 1. 기동 시: MCP 서버 연결 및 에이전트 초기화
     for server_conf in MCP_SERVERS:
         client = MCPClient(server_conf["name"], server_conf["url"])
         try:
-            await client.connect()
-            mcp_clients.append(client)
-            all_tools.extend(client.tools)
+            await client.connect(purpose="startup", retries=1)
+            mcp_clients[server_conf["name"]] = client
         except Exception as e:
             logger.error(f"MCP Connection failed ({server_conf['name']}): {e}")
             
     if not mcp_clients:
         logger.warning("❌ 연결된 서버가 없습니다. (도구 없이 초기화됩니다)")
     else:
+        all_tools = collect_all_tools(mcp_clients)
         logger.info(f"✨ 총 {len(mcp_clients)}개 서버 연결 완료. (도구 {len(all_tools)}개 사용 가능)")
         
     # 에이전트 앱 생성
-    agent_app = create_agent_app(all_tools)
+    await rebuild_agent_app(reason="startup")
     logger.info("✅ API Server: Agent initialized with tools.")
+    mcp_reconcile_task = asyncio.create_task(reconcile_mcp_clients())
     
     yield  # 서버 실행 중 (이 시점에 요청을 받습니다)
     
     # 2. 종료 시: MCP 연결 정리
     logger.info("🧹 연결 종료 중...")
-    for client in mcp_clients:
+    if mcp_reconcile_task and not mcp_reconcile_task.done():
+        mcp_reconcile_task.cancel()
+        try:
+            await mcp_reconcile_task
+        except asyncio.CancelledError:
+            pass
+    for client in mcp_clients.values():
         await client.cleanup()
     logger.info("👋 Bye!")
 
@@ -56,7 +112,8 @@ app = FastAPI(title="K8s MCP Agent API", lifespan=lifespan)
 
 # 전역 변수로 에이전트 앱과 클라이언트 관리
 agent_app = None
-mcp_clients = []
+mcp_clients = {}
+mcp_reconcile_task = None
 
 # ========================================================
 # 자체 Web을 위한 일반 API 엔드포인트
@@ -72,7 +129,8 @@ async def chat_endpoint(request: Request):
     
     # LangGraph 실행 및 최종 결과만 반환 (스트리밍이 아닐 경우)
     inputs = {"messages": [HumanMessage(content=user_input)]}
-    result = await agent_app.ainvoke(inputs)
+    current_agent_app = agent_app
+    result = await current_agent_app.ainvoke(inputs)
     
     # 결과 파싱하여 반환
     final_message = result["messages"][-1].content
@@ -91,6 +149,7 @@ async def react_flow_stream_endpoint(request: Request):
     logger.info(f"[ReactFlow UI] User > {user_input}")
 
     async def stream_generator():
+        current_agent_app = agent_app
         inputs = {"messages": [HumanMessage(content=user_input)]}
         from config import stream_queue
         
@@ -110,34 +169,47 @@ async def react_flow_stream_endpoint(request: Request):
             if error:
                 data_obj["data"]["error"] = error
             return f'8:[{json.dumps(data_obj, ensure_ascii=False)}]\n'
+
+        def make_all_idle_chunks():
+            return [make_data_status(node_id, "idle") for node_id in STREAM_NODE_IDS if node_id != "start"]
         
         import asyncio
         graph_task = None
+        synthesizer_started = False
+        simple_path = False
         
         async def run_graph():
             try:
-                # 초기 상태: Router 시작
+                for chunk in make_all_idle_chunks():
+                    await stream_queue.put(chunk)
                 await stream_queue.put(make_data_status("start", "success"))
                 await stream_queue.put(make_data_status("router", "running"))
                 
-                async for event in agent_app.astream(inputs):
+                async for event in current_agent_app.astream(inputs):
                     for key, value in event.items():
                         if key == "router":
                             await stream_queue.put(make_data_status("router", "success"))
                         elif key == "orchestrator":
                             await stream_queue.put(make_data_status("orchestrator", "running"))
                         elif key == "workers":
-                            # 개별 이벤트(LogSpecialist 등)가 EVENT 큐로 들어오므로 여기서는 전역 상태만 관리
                             await stream_queue.put(make_data_status("orchestrator", "success"))
+                            if not synthesizer_started:
+                                await stream_queue.put(make_data_status("synthesizer", "running"))
+                                synthesizer_started = True
                         elif key == "synthesizer":
-                            await stream_queue.put(make_data_status("synthesizer", "running"))
+                            if not synthesizer_started:
+                                await stream_queue.put(make_data_status("synthesizer", "running"))
+                                synthesizer_started = True
                         elif key == "simple_agent":
+                            simple_path = True
                             await stream_queue.put(make_data_status("router", "success"))
                             await stream_queue.put(make_data_status("simple_agent", "running"))
                             msg = value["messages"][-1].content
                             await stream_queue.put(make_data_status("simple_agent", "success"))
+                            await stream_queue.put(make_data_status("agent", "success"))
                             await stream_queue.put(make_data_status("end", "success"))
-                            await stream_queue.put(make_text_chunk(msg))
+                            if msg:
+                                await stream_queue.put(make_text_chunk(msg))
                             
             except Exception as e:
                 logger.error(f"❌ [Graph] 실행 중 오류 발생: {e}")
@@ -170,6 +242,11 @@ async def react_flow_stream_endpoint(request: Request):
             if msg == "EOF":
                 if token_buffer:
                     yield make_text_chunk(token_buffer)
+                if not simple_path:
+                    if synthesizer_started:
+                        yield make_data_status("synthesizer", "success")
+                    yield make_data_status("agent", "success")
+                    yield make_data_status("end", "success")
                 yield 'd:{"finishReason":"stop"}\n'
                 break
                 
@@ -177,7 +254,10 @@ async def react_flow_stream_endpoint(request: Request):
                 yield msg
                 
             elif msg.startswith("TOKEN:"):
-                token_buffer += msg.replace("TOKEN:", "", 1)
+                chunk = msg.replace("TOKEN:", "", 1)
+                if not chunk:
+                    continue
+                token_buffer += chunk
                 now = time.time()
                 if now - last_flush >= 0.1:
                     yield make_text_chunk(token_buffer)
@@ -186,9 +266,10 @@ async def react_flow_stream_endpoint(request: Request):
                     
             elif msg.startswith("FINAL:"):
                 text = msg.replace("FINAL:", "", 1)
-                yield make_data_status("agent", "success")
-                yield make_data_status("end", "success")
-                yield make_text_chunk(text)
+                if text:
+                    yield make_data_status("agent", "success")
+                    yield make_data_status("end", "success")
+                    yield make_text_chunk(text)
 
             else:
                 if msg.startswith("EVENT:"):
@@ -240,6 +321,7 @@ async def openai_compatible_endpoint(request: Request):
     logger.info(f"[OpenWebUI] User > {user_input}")
 
     async def stream_generator():
+        current_agent_app = agent_app
         inputs = {"messages": [HumanMessage(content=user_input)]}
         from config import stream_queue
         
@@ -266,7 +348,7 @@ async def openai_compatible_endpoint(request: Request):
         
         async def run_graph():
             try:
-                async for event in agent_app.astream(inputs):
+                async for event in current_agent_app.astream(inputs):
                     for key, value in event.items():
                         if key == "router":
                             await stream_queue.put("EVENT:🔄 `[System]` 라우터 모드 결정 중...")
