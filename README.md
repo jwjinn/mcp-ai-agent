@@ -46,6 +46,12 @@
 *   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive.md)**: 노드별 숨겨진 프롬프트 원문과 무한 루프, Truncation 보호 메커니즘 분석.
 *   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow.md)**: 실제 코드를 따라가는 완벽한 변수 추적 및 함수 콜스택 흐름도.
 
+## 🚀 배포 가이드
+
+운영 배포 절차와 설정값의 의미를 자세히 보고 싶다면 아래 문서를 참고하세요.
+
+👉 **[Kubernetes 배포 가이드](mcp-api-agent/DEPLOYMENT_GUIDE.md)**
+
 ---
 
 ## Architecture
@@ -109,7 +115,21 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ### 3. Deploying via GHCR (Kubernetes 배포)
 실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-api-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
 
-아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트를 작성하여 쿠버네티스에서 안정적으로 실행하세요.
+하드웨어별 배포 차이는 `mcp-api-agent/k8s/` 아래의 Kustomize overlay로 분리해 두는 것을 권장합니다.
+
+```bash
+# A100 환경
+kubectl apply -k mcp-api-agent/k8s/overlays/a100
+
+# NPU 환경
+kubectl apply -k mcp-api-agent/k8s/overlays/npu
+```
+
+`base/`에는 공통 Deployment/Service/ConfigMap을 두고, `overlays/a100`, `overlays/npu`에서는 모델 endpoint, 헤더, 스케줄링 정책 같은 환경별 값만 덮어씁니다.
+
+기존처럼 단일 YAML로 관리하고 싶다면 아래 예시를 참고할 수 있지만, 신규 운영 환경 추가 시에는 overlay 구조가 훨씬 관리하기 쉽습니다.
+
+아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트 예시는 레거시 단일 매니페스트 예시입니다.
 
 ```yaml
 apiVersion: v1

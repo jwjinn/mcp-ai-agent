@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-agent
+  labels:
+    app: mcp-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-agent
+  template:
+    metadata:
+      labels:
+        app: mcp-agent
+    spec:
+      containers:
+      - name: mcp-agent
+        image: ghcr.io/jwjinn/mcp-api-agent:latest
+        imagePullPolicy: Always
+        env:
+        - name: LANGCHAIN_TRACING_V2
+          value: "true"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: CONFIG_FILE_PATH
+          value: "/app/config/config.json"
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: mcp-agent-config

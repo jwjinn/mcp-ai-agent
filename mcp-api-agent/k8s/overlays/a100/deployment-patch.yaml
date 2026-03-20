@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-agent
+spec:
+  selector:
+    matchLabels:
+      app: mcp-agent-a100
+  template:
+    metadata:
+      labels:
+        app: mcp-agent-a100

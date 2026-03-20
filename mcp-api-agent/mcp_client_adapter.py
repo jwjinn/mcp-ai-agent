@@ -18,6 +18,7 @@ from mcp.types import CallToolResult
 # =================================================================
 from langchain_core.tools import StructuredTool
 from pydantic import create_model
+from config import RUNTIME_LIMITS
 
 # =================================================================
 # 1. MCP Client Adapter 클래스
@@ -166,10 +167,10 @@ class MCPClientAdapter:
                 final_output = "\n".join(output_text)
                 
                 # [최적화] Tool Output Truncation (토큰 폭탄 방지)
-                MAX_OUTPUT_LENGTH = 15000 # 약 5,000~7,000 토큰 (32k 컨텍스트 모델 대응용)
-                if len(final_output) > MAX_OUTPUT_LENGTH:
-                    truncated_len = len(final_output) - MAX_OUTPUT_LENGTH
-                    final_output = final_output[:MAX_OUTPUT_LENGTH] + \
+                max_output_length = RUNTIME_LIMITS["mcp_tool_max_output_chars"]
+                if len(final_output) > max_output_length:
+                    truncated_len = len(final_output) - max_output_length
+                    final_output = final_output[:max_output_length] + \
                         f"\n... (⚠️ Output truncated by {truncated_len} chars. Use specific filters to see more.)"
                     print(f"✂️ [Truncation] 결과가 너무 길어 잘랐습니다. ({len(final_output)} chars)")
 

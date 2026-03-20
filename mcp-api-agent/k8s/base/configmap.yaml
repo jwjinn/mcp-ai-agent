@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-agent-config
+  labels:
+    app: mcp-agent
+data:
+  config.json: |
+    {
+      "MCP_SERVERS": [
+        {"name": "k8s", "url": "http://mcp-k8s-svc.mcp/sse"},
+        {"name": "vlogs", "url": "http://mcp-vlogs-svc.mcp/sse"},
+        {"name": "vm", "url": "http://mcp-vm-svc.mcp/sse"},
+        {"name": "vtraces", "url": "http://mcp-vtraces-svc.mcp/sse"}
+      ],
+      "INSTRUCT_CONFIG": {
+        "base_url": "http://llm-gateway.example.local/v1",
+        "model_name": "replace-in-overlay",
+        "api_key": "EMPTY",
+        "default_headers": {
+          "Host": "replace-in-overlay.example.com"
+        },
+        "temperature": 0,
+        "context_window": null,
+        "max_input_tokens": null,
+        "max_output_tokens": null
+      },
+      "THINKING_CONFIG": {
+        "base_url": "http://llm-gateway.example.local/v1",
+        "model_name": "replace-in-overlay",
+        "api_key": "EMPTY",
+        "default_headers": {
+          "Host": "replace-in-overlay.example.com"
+        },
+        "temperature": 0,
+        "context_window": 32768,
+        "max_input_tokens": 28672,
+        "max_output_tokens": 4096
+      },
+      "RUNTIME_LIMITS": {
+        "router_keep_last": 5,
+        "simple_keep_last": 15,
+        "max_ai_steps": 10,
+        "worker_summary_quota": 2000,
+        "max_total_context": 10000,
+        "mcp_tool_max_output_chars": 10000,
+        "worker_raw_result_max_chars": 8000
+      }
+    }

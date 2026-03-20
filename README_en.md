@@ -46,6 +46,12 @@ If you want to go beyond the tutorial and taste the essence of **LangGraph state
 *   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive_en.md)**: Analysis of hidden raw prompts per node, loop prevention, and Truncation protection mechanisms.
 *   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow_en.md)**: A perfect variable tracking and function call-stack flow chart following the actual code.
 
+## 🚀 Deployment Guide
+
+If you want a practical deployment guide with detailed explanations of each setting, see:
+
+👉 **[Kubernetes Deployment Guide](mcp-api-agent/DEPLOYMENT_GUIDE.md)**
+
 ---
 
 ## Architecture
@@ -109,7 +115,21 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ### 3. Deploying via GHCR (Kubernetes)
 For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The API Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-api-agent` directory.
 
-You can reliably deploy it on your Kubernetes cluster using the following comprehensive guide (ConfigMap + Deployment).
+We recommend separating hardware-specific deployment settings with Kustomize overlays under `mcp-api-agent/k8s/`.
+
+```bash
+# A100 environment
+kubectl apply -k mcp-api-agent/k8s/overlays/a100
+
+# NPU environment
+kubectl apply -k mcp-api-agent/k8s/overlays/npu
+```
+
+Keep shared Deployment/Service/ConfigMap resources in `base/`, and override only environment-specific values such as model endpoints, headers, and scheduling rules in `overlays/a100` and `overlays/npu`.
+
+If you still prefer a single YAML file you can use the legacy example below, but overlays are much easier to maintain once multiple hardware targets are involved.
+
+The following comprehensive guide (ConfigMap + Deployment) is the legacy single-manifest example.
 
 ```yaml
 apiVersion: v1

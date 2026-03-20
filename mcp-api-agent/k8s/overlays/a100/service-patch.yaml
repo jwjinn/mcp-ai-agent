@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-agent
+spec:
+  selector:
+    app: mcp-agent-a100

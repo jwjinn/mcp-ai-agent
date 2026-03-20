@@ -1,3 +1,8 @@
+# Legacy single-file manifest.
+# Prefer the new Kustomize layout under mcp-api-agent/k8s/:
+#   kubectl apply -k mcp-api-agent/k8s/overlays/a100
+#   kubectl apply -k mcp-api-agent/k8s/overlays/npu
+#
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -19,14 +24,29 @@ data:
         "model_name": "qwen-custom",
         "api_key": "EMPTY",
         "default_headers": {"Host": "qwen-instruct-nai-admin.example.com"},
-        "temperature": 0
+        "temperature": 0,
+        "context_window": null,
+        "max_input_tokens": null,
+        "max_output_tokens": null
       },
       "THINKING_CONFIG": {
         "base_url": "http://192.168.120.157:80/v1",
         "model_name": "qwen-thinking",
         "api_key": "EMPTY",
         "default_headers": {"Host": "qwen-thinking-nai-admin.example.com"},
-        "temperature": 0
+        "temperature": 0,
+        "context_window": 32768,
+        "max_input_tokens": 28672,
+        "max_output_tokens": 4096
+      },
+      "RUNTIME_LIMITS": {
+        "router_keep_last": 5,
+        "simple_keep_last": 15,
+        "max_ai_steps": 10,
+        "worker_summary_quota": 2000,
+        "max_total_context": 10000,
+        "mcp_tool_max_output_chars": 10000,
+        "worker_raw_result_max_chars": 8000
       }
     }
 ---

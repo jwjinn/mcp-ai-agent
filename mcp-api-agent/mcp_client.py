@@ -9,7 +9,7 @@ from mcp.types import CallToolResult
 from langchain_core.tools import StructuredTool
 from pydantic import create_model
 
-from config import logger
+from config import RUNTIME_LIMITS, logger
 
 class MCPClient:
     def __init__(self, name: str, server_url: str):
@@ -124,10 +124,10 @@ class MCPClient:
             # [최적화] Tool Output Truncation (토큰 폭탄 및 LLM 뻗음 방지)
             # 50,000자는 너무 길어 LLM이 느려지거나 컨텍스트 한계로 에러(Crash)를 유발합니다.
             # 속도 최적화 및 안정성을 위해 10,000자(약 3,000토큰)로 제한합니다.
-            MAX_OUTPUT_LENGTH = 10000 
-            if len(final_output) > MAX_OUTPUT_LENGTH:
-                final_output = final_output[:MAX_OUTPUT_LENGTH] + \
-                    f"\n... (⚠️ Output truncated by {len(final_output) - MAX_OUTPUT_LENGTH} chars. Use specific filters to see more.)"
+            max_output_length = RUNTIME_LIMITS["mcp_tool_max_output_chars"]
+            if len(final_output) > max_output_length:
+                final_output = final_output[:max_output_length] + \
+                    f"\n... (⚠️ Output truncated by {len(final_output) - max_output_length} chars. Use specific filters to see more.)"
                 logger.warning(f"✂️ [{self.name}] Truncation: 결과가 너무 길어 잘랐습니다. ({len(final_output)} chars)")
 
             # [변경] 디버깅을 위해 결과의 앞부분을 보여줌

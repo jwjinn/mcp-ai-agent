@@ -1,6 +1,7 @@
 from typing import TypedDict, Annotated, List, Literal, Dict
 import json
 import asyncio
+import math
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
@@ -10,7 +11,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from datetime import datetime, timezone
 
-from config import INSTRUCT_CONFIG, THINKING_CONFIG, logger
+from config import INSTRUCT_CONFIG, THINKING_CONFIG, RUNTIME_LIMITS, logger
 
 # =================================================================
 # 1. 상태(State) 정의
@@ -29,6 +30,7 @@ class AgentState(TypedDict):
 # =================================================================
 from langchain_core.callbacks import BaseCallbackHandler
 import sys
+import tiktoken
 
 # Thinking 과정을 실시간으로 보여주기 위한 콜백
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -67,14 +69,21 @@ class AsyncThinkingStreamCallback(AsyncCallbackHandler):
             self.buffer = "" # 버퍼 초기화
 
 def get_instruct_model():
+    kwargs = {
+        "model": INSTRUCT_CONFIG["model_name"],
+        "api_key": INSTRUCT_CONFIG["api_key"],
+        "base_url": INSTRUCT_CONFIG["base_url"],
+        "default_headers": INSTRUCT_CONFIG["default_headers"],
+        "temperature": INSTRUCT_CONFIG["temperature"],
+        "request_timeout": 300,
+        "max_retries": 3,
+    }
+    max_output_tokens = INSTRUCT_CONFIG.get("max_output_tokens")
+    if max_output_tokens is not None:
+        kwargs["max_tokens"] = max_output_tokens
+
     return ChatOpenAI(
-        model=INSTRUCT_CONFIG["model_name"],
-        api_key=INSTRUCT_CONFIG["api_key"],
-        base_url=INSTRUCT_CONFIG["base_url"],
-        default_headers=INSTRUCT_CONFIG["default_headers"],
-        temperature=INSTRUCT_CONFIG["temperature"],
-        request_timeout=300,  # 5분 타임아웃
-        max_retries=3         # 재사용성 강화
+        **kwargs
     )
 
 def get_thinking_model(stream_prefix=""):
@@ -88,18 +97,22 @@ def get_thinking_model(stream_prefix=""):
         from config import stream_queue
         callbacks = [AsyncThinkingStreamCallback(target_queue=stream_queue)]
 
-    return ChatOpenAI(
-        model=THINKING_CONFIG["model_name"],
-        api_key=THINKING_CONFIG["api_key"],
-        base_url=THINKING_CONFIG["base_url"],
-        default_headers=THINKING_CONFIG["default_headers"],
-        temperature=THINKING_CONFIG["temperature"],
-        request_timeout=3600, # 60분 타임아웃 (느린 모델 대응)
-        streaming=True,       # [변경] 타임아웃 방지를 위해 스트리밍 켬
-        callbacks=callbacks,
-        max_retries=3,       # 재사용성 강화 (끊기면 재시도)
-        max_tokens=4096      # [최적화] 16k는 너무 큼. 4k로 줄여서 입력 컨텍스트 공간 확보 (32k - 4k = 28k 여유)
-    )
+    kwargs = {
+        "model": THINKING_CONFIG["model_name"],
+        "api_key": THINKING_CONFIG["api_key"],
+        "base_url": THINKING_CONFIG["base_url"],
+        "default_headers": THINKING_CONFIG["default_headers"],
+        "temperature": THINKING_CONFIG["temperature"],
+        "request_timeout": 3600,
+        "streaming": True,
+        "callbacks": callbacks,
+        "max_retries": 3,
+    }
+    max_output_tokens = THINKING_CONFIG.get("max_output_tokens")
+    if max_output_tokens is not None:
+        kwargs["max_tokens"] = max_output_tokens
+
+    return ChatOpenAI(**kwargs)
 
 # =================================================================
 # 3. 노드(Node) 정의
@@ -176,6 +189,49 @@ def remove_thinking_tags(text: str) -> str:
         return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
     return text
 
+
+def estimate_token_count(text: str, model_name: str) -> int:
+    """가능하면 tokenizer로, 어려우면 보수적인 문자 길이 추정으로 토큰 수를 계산합니다."""
+    if not text:
+        return 0
+
+    try:
+        encoding = tiktoken.encoding_for_model(model_name)
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        encoding = None
+
+    if encoding is not None:
+        return len(encoding.encode(text))
+
+    # fallback: 한국어/혼합 텍스트를 고려해 2 chars ~= 1 token으로 보수 추정
+    return math.ceil(len(text) / 2)
+
+
+def trim_text_to_token_limit(text: str, max_tokens: int, model_name: str, suffix: str) -> str:
+    if max_tokens <= 0 or not text:
+        return suffix.strip()
+
+    try:
+        encoding = tiktoken.encoding_for_model(model_name)
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        encoding = None
+
+    if encoding is not None:
+        tokens = encoding.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
+        clipped_tokens = tokens[:max_tokens]
+        return encoding.decode(clipped_tokens).rstrip() + suffix
+
+    max_chars = max_tokens * 2
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + suffix
+
 async def router_node(state: AgentState):
     """
     [Router] Instruct 모델이 사용자 질문을 분석하여 모드를 결정합니다.
@@ -185,7 +241,9 @@ async def router_node(state: AgentState):
     
     # [최적화] 메시지 최적화 (Router는 최신 메시지만 봐도 됨)
     # 하지만 문맥 파악을 위해 최근 5개 정도는 유지
-    safe_messages = trim_messages_history(state["messages"], keep_last=5)
+    safe_messages = trim_messages_history(
+        state["messages"], keep_last=RUNTIME_LIMITS["router_keep_last"]
+    )
     last_msg = safe_messages[-1]
     
     prompt = f"""
@@ -250,13 +308,15 @@ async def simple_agent_node(state: AgentState, tools):
 
     
     # [최적화] 메시지 정리
-    safe_messages = trim_messages_history(state["messages"], keep_last=15)
+    safe_messages = trim_messages_history(
+        state["messages"], keep_last=RUNTIME_LIMITS["simple_keep_last"]
+    )
     messages = [sys_msg] + safe_messages
     
     # [최적화] Max Steps Check (무한 루프 방지)
     # 현재 답변(AIMessage) 개수가 너무 많으면 강제 종료
     ai_msg_count = sum(1 for m in state["messages"] if isinstance(m, AIMessage))
-    if ai_msg_count > 10: # 안전장치: 너무 오래 끈다 싶으면
+    if ai_msg_count > RUNTIME_LIMITS["max_ai_steps"]:
         return {"messages": [AIMessage(content="⚠️ [System] 대화가 너무 길어져 안전을 위해 종료합니다. 현재까지의 정보로 답변해주세요.")]}
 
     response = await llm_with_tools.ainvoke(messages)
@@ -473,19 +533,58 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             raw_results = "\n\n".join(tool_outputs)
             
             # 토큰 절약을 위해 날것의 데이터가 너무 길면 여기서도 1차 절단 (비상용)
-            MAX_RAW_LENGTH = 8000
-            if len(raw_results) > MAX_RAW_LENGTH:
+            max_raw_length = RUNTIME_LIMITS["worker_raw_result_max_chars"]
+            if len(raw_results) > max_raw_length:
                 if "K8sSpecialist" in worker_name:
                     # K8s describe 결과는 맨 끝에 핵심인 'Events'가 있으므로 뒷부분 위주로 보존
-                    raw_results = raw_results[:2000] + "\n\n... (중략: 장황한 환경변수/볼륨 데이터 생략) ...\n\n" + raw_results[-6000:]
+                    head_quota = min(2000, max_raw_length)
+                    tail_quota = max(0, max_raw_length - head_quota)
+                    original_raw_results = raw_results
+                    raw_results = original_raw_results[:head_quota]
+                    if tail_quota > 0:
+                        raw_results += "\n\n... (중략: 장황한 환경변수/볼륨 데이터 생략) ...\n\n" + original_raw_results[-tail_quota:]
                 elif "LogSpecialist" in worker_name:
                     # 너무 많이 자르면(4000자) 핵심 에러가 유실될 부작용이 있으므로,
                     # 여유를 두고 8000자로 늘립니다. (대신 파이프라인에서 limit: 50 등으로 걸러진 상태를 가정)
-                    raw_results = raw_results[:8000] + "\n... (로그 데이터 길어짐, 이하 생략)"
+                    raw_results = raw_results[:max_raw_length] + "\n... (로그 데이터 길어짐, 이하 생략)"
                 else:
-                    raw_results = raw_results[:MAX_RAW_LENGTH] + "\n... (데이터 길어짐)"
+                    raw_results = raw_results[:max_raw_length] + "\n... (데이터 길어짐)"
 
             summarize_prompt = f"""
+            당신은 {worker_name}의 요약 담당자입니다.
+            지휘자(Orchestrator)가 당신에게 내린 원래 임무는 다음과 같습니다:
+            <instruction>
+            {instruction}
+            </instruction>
+            
+            아래는 도구를 실행하여 얻은 날것의 데이터(Raw Data)입니다:
+            <raw_data>
+            {raw_results}
+            </raw_data>
+            
+            **[작업 지시]**
+            1. 오직 위의 <instruction>에 답하는 데 필요한 핵심 팩트만 <raw_data>에서 추출하세요.
+            2. 발견된 에러 문구, 경고, 실패 파드 이름은 절대 누락하지 말고 보존하세요.
+            3. 문장을 엄청 길게 풀어서 설명하지 마시고, "1. API 파드 Pending" 처럼 가독성이 좋은 개조식(Bullet points)으로 작성해주세요.
+            4. 출력 길이는 충분한 장애 진단 정보 제공을 위해 최대 **2,000자**까지 허용합니다. 단, 인사말(서론/결론)은 생략하세요.
+            5. 핵심 에러 원문(Stack Trace)만 예외적으로 그대로 붙여넣어 주세요.
+            """
+
+            max_input_tokens = INSTRUCT_CONFIG.get("max_input_tokens")
+            if max_input_tokens:
+                prompt_without_raw_data = summarize_prompt.replace(raw_results, "")
+                reserved_tokens = estimate_token_count(
+                    prompt_without_raw_data, INSTRUCT_CONFIG["model_name"]
+                )
+                available_tokens = max_input_tokens - reserved_tokens
+                if available_tokens < estimate_token_count(raw_results, INSTRUCT_CONFIG["model_name"]):
+                    raw_results = trim_text_to_token_limit(
+                        raw_results,
+                        max(available_tokens, 1),
+                        INSTRUCT_CONFIG["model_name"],
+                        "\n... (⚠️ max_input_tokens 보호 장치에 의해 절단됨)",
+                    )
+                    summarize_prompt = f"""
             당신은 {worker_name}의 요약 담당자입니다.
             지휘자(Orchestrator)가 당신에게 내린 원래 임무는 다음과 같습니다:
             <instruction>
@@ -609,40 +708,91 @@ async def synthesizer_node(state: AgentState):
         elif "[LogSpecialist]" in res: worker_results_dict["log"] = res
 
     # 각 전문가별 최대 할당 글자 수 (이미 요약본이므로 2,000자면 충분)
-    QUOTA = 2000
+    quota = RUNTIME_LIMITS["worker_summary_quota"]
     ordered_results = []
     
     # 1순위: K8s (기반 정보)
     if "k8s" in worker_results_dict:
         res = worker_results_dict["k8s"]
-        if len(res) > QUOTA:
-            res = res[:QUOTA] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
+        if len(res) > quota:
+            res = res[:quota] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
         ordered_results.append(res)
 
     # 2순위: Metric (수치적 징후)
     if "metric" in worker_results_dict:
         res = worker_results_dict["metric"]
-        if len(res) > QUOTA:
-            res = res[:QUOTA] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
+        if len(res) > quota:
+            res = res[:quota] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
         ordered_results.append(res)
 
     # 3순위: Log (상세 발생 원인)
     if "log" in worker_results_dict:
         res = worker_results_dict["log"]
-        if len(res) > QUOTA:
-            res = res[:QUOTA] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
+        if len(res) > quota:
+            res = res[:quota] + "\n... (⚠️ 요약본이 너무 길어 절단됨)"
         ordered_results.append(res)
 
     worker_results_str = "\n\n".join(ordered_results)
     
     # [최적화] 전역 컨텍스트 가드 (최종 안전장치) - 요약본이므로 10,000자면 충분
-    MAX_TOTAL_CONTEXT = 10000 
-    if len(worker_results_str) > MAX_TOTAL_CONTEXT:
-        worker_results_str = worker_results_str[:MAX_TOTAL_CONTEXT] + "\n\n... (⚠️ 전역 보호 장치에 의해 하단 절단됨)"
+    max_total_context = RUNTIME_LIMITS["max_total_context"]
+    if len(worker_results_str) > max_total_context:
+        worker_results_str = worker_results_str[:max_total_context] + "\n\n... (⚠️ 전역 보호 장치에 의해 하단 절단됨)"
     
     logger.debug(f"   📝 [Synthesizer] 각 전문가의 요약본 취합 완료 (총 길이: {len(worker_results_str)}자)")
 
     prompt = f"""
+    당신은 최종 답변을 정리하는 Synthesizer입니다.
+    Orchestrator가 작업자(Worker)들에게 지시를 내렸고, 그 결과가 아래와 같습니다.
+    이 내용을 종합하여 사용자의 질문에 대한 최종 진단과 답변을 작성하세요.
+    
+    [사용자 질문]
+    {state['messages'][-1].content}
+    
+    [Worker 실행 결과 보고서]
+    {worker_results_str}
+    
+    [작성 규칙]
+    1. 각 전문가의 분석 결과를 인용하여 논리적으로 설명하세요.
+    2. 결과를 바탕으로 원인을 진단하고, 해결책을 제안하세요.
+    3. **핵심 분석 룰**: 도구 실행 결과가 "[빈 결과 반환...]" 형태로 왔다면, 절대 권한 부족이나 통신 장애로 오해하지 마세요! 오류 필터(예: Failed 파드 제한)에 걸리는 안 좋은 리소스가 아예 없어서 클러스터가 매우 건강하다는 뜻입니다. 이를 분석하여 사용자에게 "에러 파드가 하나도 없이 건강하다"고 보고하세요.
+    4. **추가 건강성 룰**: K8s 전문의 보고서가 단순히 파드 이름 목록(`pod/xxx`, `deployment/yyy` 등)만 나열하고 특별한 에러 메시지(CrashLoopBackOff, Pending, Failed 등)가 없다면, 그 리소스들은 정상적으로 띄워져 있는 것(Running)으로 확신하고 설명하세요. "상태를 명확히 알 수 없다"고 애매하게 답변하지 마세요.
+    5. 결과에 실제 에러 문구(Unauthorized, Connection Refused 등)나 알 수 없는 크래시 흔적이 있을 때만 수동 점검을 제안하세요.
+    """
+
+    max_input_tokens = THINKING_CONFIG.get("max_input_tokens")
+    if max_input_tokens:
+        prompt_without_results = f"""
+    당신은 최종 답변을 정리하는 Synthesizer입니다.
+    Orchestrator가 작업자(Worker)들에게 지시를 내렸고, 그 결과가 아래와 같습니다.
+    이 내용을 종합하여 사용자의 질문에 대한 최종 진단과 답변을 작성하세요.
+    
+    [사용자 질문]
+    {state['messages'][-1].content}
+    
+    [Worker 실행 결과 보고서]
+    
+    [작성 규칙]
+    1. 각 전문가의 분석 결과를 인용하여 논리적으로 설명하세요.
+    2. 결과를 바탕으로 원인을 진단하고, 해결책을 제안하세요.
+    3. **핵심 분석 룰**: 도구 실행 결과가 "[빈 결과 반환...]" 형태로 왔다면, 절대 권한 부족이나 통신 장애로 오해하지 마세요! 오류 필터(예: Failed 파드 제한)에 걸리는 안 좋은 리소스가 아예 없어서 클러스터가 매우 건강하다는 뜻입니다. 이를 분석하여 사용자에게 "에러 파드가 하나도 없이 건강하다"고 보고하세요.
+    4. **추가 건강성 룰**: K8s 전문의 보고서가 단순히 파드 이름 목록(`pod/xxx`, `deployment/yyy` 등)만 나열하고 특별한 에러 메시지(CrashLoopBackOff, Pending, Failed 등)가 없다면, 그 리소스들은 정상적으로 띄워져 있는 것(Running)으로 확신하고 설명하세요. "상태를 명확히 알 수 없다"고 애매하게 답변하지 마세요.
+    5. 결과에 실제 에러 문구(Unauthorized, Connection Refused 등)나 알 수 없는 크래시 흔적이 있을 때만 수동 점검을 제안하세요.
+    """
+        reserved_tokens = estimate_token_count(
+            prompt_without_results, THINKING_CONFIG["model_name"]
+        )
+        available_tokens = max_input_tokens - reserved_tokens
+        if available_tokens < estimate_token_count(
+            worker_results_str, THINKING_CONFIG["model_name"]
+        ):
+            worker_results_str = trim_text_to_token_limit(
+                worker_results_str,
+                max(available_tokens, 1),
+                THINKING_CONFIG["model_name"],
+                "\n\n... (⚠️ max_input_tokens 보호 장치에 의해 절단됨)",
+            )
+            prompt = f"""
     당신은 최종 답변을 정리하는 Synthesizer입니다.
     Orchestrator가 작업자(Worker)들에게 지시를 내렸고, 그 결과가 아래와 같습니다.
     이 내용을 종합하여 사용자의 질문에 대한 최종 진단과 답변을 작성하세요.

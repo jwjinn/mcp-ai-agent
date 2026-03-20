@@ -24,7 +24,10 @@
         "default_headers": {
             "Host": "<OPTIONAL_HOST_HEADER>"
         },
-        "temperature": 0
+        "temperature": 0,
+        "context_window": null,
+        "max_input_tokens": null,
+        "max_output_tokens": null
     },
     "THINKING_CONFIG": {
         "base_url": "http://<YOUR_LLM_API_BASE_URL>/v1",
@@ -33,6 +36,18 @@
         "default_headers": {
             "Host": "<OPTIONAL_HOST_HEADER>"
         },
-        "temperature": 0
+        "temperature": 0,
+        "context_window": 32768,
+        "max_input_tokens": 28672,
+        "max_output_tokens": 4096
+    },
+    "RUNTIME_LIMITS": {
+        "router_keep_last": 5,
+        "simple_keep_last": 15,
+        "max_ai_steps": 10,
+        "worker_summary_quota": 2000,
+        "max_total_context": 10000,
+        "mcp_tool_max_output_chars": 10000,
+        "worker_raw_result_max_chars": 8000
     }
 }
