@@ -303,10 +303,54 @@ async def router_node(state: AgentState):
 # -----------------------------------------------------------------
 # [Simple Mode] 단순 실행
 # -----------------------------------------------------------------
+def select_simple_tools(user_input: str, tools: list) -> list:
+    normalized = (user_input or "").lower()
+
+    category_keywords = {
+        "k8s": [
+            "namespace", "namespaces", "네임스페이스",
+            "pod", "pods", "파드",
+            "service", "services", "svc", "서비스",
+            "deployment", "deployments", "디플로이먼트",
+            "node", "nodes", "노드",
+            "event", "events", "이벤트",
+        ],
+        "metric": [
+            "cpu", "memory", "mem", "ram", "network", "traffic", "metric", "metrics",
+            "메트릭", "메모리", "트래픽", "네트워크", "사용량", "topk", "alert", "alerts",
+            "trace", "traces", "latency", "지연",
+        ],
+        "log": [
+            "log", "logs", "로그", "error", "errors", "warn", "warning", "경고",
+            "forbidden", "denied", "cannot", "fail", "failed",
+        ],
+    }
+
+    selected = []
+    for category, keywords in category_keywords.items():
+        if any(keyword in normalized for keyword in keywords):
+            selected.extend(filter_tools(tools, category))
+
+    if selected:
+        deduped = []
+        seen = set()
+        for tool in selected:
+            if tool.name not in seen:
+                deduped.append(tool)
+                seen.add(tool.name)
+        return deduped
+
+    fallback_tools = filter_tools(tools, "k8s")
+    return fallback_tools or tools
+
+
 async def simple_agent_node(state: AgentState, tools):
     """표준 ReAct 에이전트"""
     instruct_llm = get_instruct_model()
-    llm_with_tools = instruct_llm.bind_tools(tools)
+    last_msg = state["messages"][-1]
+    selected_tools = select_simple_tools(str(last_msg.content), tools)
+    logger.info(f"🧰 [Simple] 도구 축소 적용: 전체 {len(tools)}개 -> 선택 {len(selected_tools)}개")
+    llm_with_tools = instruct_llm.bind_tools(selected_tools)
     
     # 현재 시간 주입 (모델이 'now'를 모를 때 대비)
     current_time = datetime.now(timezone.utc).isoformat()
