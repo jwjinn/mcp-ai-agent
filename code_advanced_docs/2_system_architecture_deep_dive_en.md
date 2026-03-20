@@ -2,13 +2,15 @@
 
 This report provides an in-depth analysis of the `mcp-ai-agent`'s internal logic, specifically the **System Prompts** used at each stage and its detailed implementation mechanisms.
 
+> This is a prompt/code deep-dive document. For the current operational baseline, see [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md) and [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md).
+
 ---
 
 ## 1. State Management
 
 The agent shares data across all nodes via LangGraph's `AgentState`.
 
-*   **messages**: Conversation history (Array of LangChain Message objects). A **Smart Sliding Window** is applied, maintaining only the most recent 15 messages to prevent browser lag and context window explosion.
+*   **messages**: Conversation history (Array of LangChain Message objects). In the current version, effective retention is controlled through `RUNTIME_LIMITS`.
 *   **mode**: Routing result, either "SIMPLE" or "COMPLEX".
 *   **worker_plans**: JSON instructions given by the Orchestrator to the Workers.
 *   **worker_results**: A list of summarized reports produced by each specialist executing tools.
@@ -70,7 +72,7 @@ Executes specialists concurrently via `asyncio.gather`, while protecting the API
 
 ---
 
-## 4. MCP Communication Details ([mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py))
+## 4. MCP Communication Details (`mcp_client.py`)
 
 *   **Keep-Alive**: Runs a background task that sends a `ping` every 45 seconds to maintain the SSE connection.
 *   **Dynamic Pydantic Model**: Converts the server's `inputSchema` to classes at runtime using `create_model`. This allows LangChain to validate tool arguments accurately.

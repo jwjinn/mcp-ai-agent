@@ -2,6 +2,8 @@
 
 이 문서는 본 시스템이 **최적의 모델 성능(Model Performance)과 치명적 파싱(Parsing) 에러 제로화**를 달성하기 위해 도입한 LLM 이원화(Dichotomy) 원리와 프롬프트 엔지니어링의 정수를 다루는 아키텍처 가이드입니다.
 
+> 이 문서는 **모델 전략 심화 문서**입니다. 현재 모델 역할 분리와 토큰 보호값 운영 방식은 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md), [`mcp-api-agent/NPU_QWEN3_REFERENCE.md`](../mcp-api-agent/NPU_QWEN3_REFERENCE.md)를 참고하세요.
+
 ---
 
 ## 🎭 1. 모델 이원화의 딜레마 (Instruct vs Thinking)

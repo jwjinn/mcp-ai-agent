@@ -6,7 +6,7 @@ This directory separates deployment concerns from application code so that A100 
 
 - `base/`: Common ConfigMap, Deployment, and Service shared by every environment.
 - `overlays/a100/`: A100-oriented configuration and naming.
-- `overlays/npu/`: NPU-oriented configuration and scheduling defaults.
+- `overlays/npu/`: NPU-oriented configuration defaults.
 
 ## Apply
 
@@ -19,7 +19,7 @@ kubectl apply -k mcp-api-agent/k8s/overlays/npu
 
 - Update each overlay's `configmap-patch.yaml` with the correct model endpoint, host header, and model names.
 - Tune `context_window`, `max_input_tokens`, `max_output_tokens`, and `RUNTIME_LIMITS` per hardware/model when A100 and NPU serve different model profiles.
-- If your NPU cluster uses a different node label or runtime class, adjust `overlays/npu/deployment-patch.yaml`.
+- If you want scheduling constraints for a specific environment, add them in the overlay `deployment-patch.yaml`.
 - If you need separate image tags per environment, update the image in the base or add an image override in the overlay kustomization.
 
 ## Environment Variable Overrides

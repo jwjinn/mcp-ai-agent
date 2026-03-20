@@ -3,6 +3,9 @@
 앞서 2장에서 본 멋진 "조직도"가 코드로 어떻게 짜여 있는지 궁금하지 않으신가요? 
 이번 장에서는 프로젝트의 핵심 심장인 **3개의 방(파일)**을 페어 프로그래밍 하듯이 한 줄 한 줄 쉽게, 하지만 뼈대 위주로 짚어 드리겠습니다.
 
+> 현재 운영 기준 문서는 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)입니다.  
+> 이 문서는 **구조 이해용 코드 해설**이며, 최신 운영 설정과 배포 흐름은 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)를 우선 참고하세요.
+
 ---
 
 ## 🚪 첫 번째 방: `agent_graph.py` (조직의 뇌)

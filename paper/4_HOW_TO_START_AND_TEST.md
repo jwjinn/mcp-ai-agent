@@ -4,6 +4,8 @@
 이제 진짜로 내 컴퓨터(로컬)에서 이 엄청난 AI 비서를 깨워볼 시간입니다. 
 초보자라도 천천히 따라 할 수 있도록 "떠먹여 드리는" 형태로 진행합니다.
 
+> 이 문서는 설명형 튜토리얼입니다. 최신 로컬 실행 및 API 테스트 절차는 [`mcp-api-agent/FastAPI_Run_Test_Guide.md`](../mcp-api-agent/FastAPI_Run_Test_Guide.md)를 우선 기준으로 보세요.
+
 ---
 
 ## 🛠️ Step 1. 파이썬 마법 지팡이(환경) 준비하기
@@ -39,7 +41,7 @@ pip install -r requirements_api.txt
 ### 👉 `config.json` 수정하기 (어디서 데이터를 캘 것인가? 어디 뇌를 쓸 것인가?)
 
 만들어진 `config.json` 파일을 열어서 메모장(또는 VSCode)으로 엽니다.
-초보자분들은 로컬 K8s에 띄워진 도구(NodePort) 주소랑, 여러분이 쓰는 LLM(Qwen 등)의 주소만 박아주면 됩니다.
+초보자분들은 먼저 `MCP_SERVERS`, `INSTRUCT_CONFIG`, `THINKING_CONFIG`, `RUNTIME_LIMITS` 네 영역이 각각 어떤 역할인지 이해하고 시작하는 것이 좋습니다. 최신 구조 설명은 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)를 참고하세요.
 
 ```json
 {
@@ -121,3 +123,5 @@ curl -X POST http://127.0.0.1:8000/v1/chat/completions \
 앞으로 새로운 MCP 서버(ex. 슬랙 메시지 알림, 지라 이슈 생성기 등)를 만들게 되더라도, 그저 `config.json`에 줄 하나만 찍 추가하면 우리 똑똑한 비서들이 알아서 도구를 장착하고 놀라운 일들을 해낼 거예요.
 
 여러분의 AIOps 영웅이 되실 준비가 되셨습니다. 코드를 맘껏 부수고(?) 개선해 보세요!
+
+> 운영 환경에서는 `ConfigMap(config.json)` 기반 설정과 `k8s/overlays/` 기반 배포를 권장합니다.

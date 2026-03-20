@@ -2,6 +2,8 @@
 
 이 문서는 사용자의 질문이 입력된 순간부터 시스템 내부의 함수와 변수들이 어떻게 값을 주고받으며, 최종 답변을 생성해 내는지 **실제 코드 레벨에서 단계별로 추적**합니다.
 
+> 이 문서는 상세 코드 흐름 심화 문서입니다. 현재 운영 문서와 설정 키 설명은 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md), [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)를 참고하세요.
+
 ---
 
 ## 1. 서버 기동 및 MCP 도구 초기화 (Initialization)
@@ -9,7 +11,7 @@
 프로그램이 시작되면 가장 먼저 외부 모니터링 시스템(Kubernetes, VictoriaLogs 등)과 연결을 맺고 "사용 가능한 도구"를 LangChain이 이해할 수 있는 형태로 준비해야 합니다. 이 작업은 `main.py` (또는 `api_server.py`)의 전역 초기화와 `mcp_client.py`에서 이루어집니다.
 
 ### 1-1. 클라이언트 생성 및 연결 (`api_server.py`의 `lifespan` / `main.py`)
-`config.py`에 정의된 `MCP_SERVERS` 배열을 순회하며 `MCPClient` 객체를 생성합니다.
+애플리케이션은 현재 `config.py`가 읽어들인 설정값(`config.json` + env override)을 바탕으로 `MCP_SERVERS` 배열을 순회하며 `MCPClient` 객체를 생성합니다.
 
 ```python
 # main.py 발췌

@@ -2,6 +2,8 @@
 
 This document traces step-by-step at the **actual code level** how internal functions and variables exchange values from the moment a user's question is input until the final answer is generated.
 
+> This is a detailed code-flow document. For current deployment and configuration behavior, see [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md) and [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md).
+
 ---
 
 ## 1. Server Startup and MCP Tool Initialization
@@ -9,7 +11,7 @@ This document traces step-by-step at the **actual code level** how internal func
 When the program starts, it must first establish connections with external monitoring systems (Kubernetes, VictoriaLogs, etc.) and prepare "available tools" in a format LangChain can understand. This happens during global initialization in `main.py` (or `api_server.py`) and inside `mcp_client.py`.
 
 ### 1-1. Client Creation and Connection (`api_server.py` lifespan / `main.py`)
-It iterates through the `MCP_SERVERS` array defined in `config.py` to create `MCPClient` objects.
+It iterates through the effective `MCP_SERVERS` array loaded by `config.py` (from `config.json` plus optional environment overrides) to create `MCPClient` objects.
 
 ```python
 # Excerpt from main.py

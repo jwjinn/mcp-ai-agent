@@ -2,13 +2,15 @@
 
 이 보고서는 `mcp-ai-agent`의 내부 로직, 특히 각 단계에서 사용되는 **System Prompt**와 상세 구현 메커니즘을 심증 분석합니다.
 
+> 이 문서는 코드/프롬프트 심화 문서입니다. 현재 운영 기준 문서는 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md), [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)입니다.
+
 ---
 
 ## 1. 상태 관리 (State Management)
 
 에이전트는 LangGraph의 `AgentState`를 통해 모든 노드 간의 데이터를 공유합니다.
 
-*   **messages**: 대화 기록 (LangChain Message 객체 배열). 브라우저 렉 방지를 위해 최근 15개만 유지하는 **Smart Sliding Window**가 적용됨.
+*   **messages**: 대화 기록 (LangChain Message 객체 배열). 현재 버전에서는 실제 보존 개수가 `RUNTIME_LIMITS`에 의해 조정될 수 있습니다.
 *   **mode**: "SIMPLE" 또는 "COMPLEX" 라우팅 결과.
 *   **worker_plans**: 조율자(Orchestrator)가 전문가(Worker)에게 내린 JSON 지시서.
 *   **worker_results**: 각 전문가가 도구를 실행하고 요약한 보고서들의 리스트.
@@ -70,7 +72,7 @@ if new_tc["name"] == old_tc["name"] and new_tc["args"] == old_tc["args"]:
 
 ---
 
-## 4. MCP 통신 상세 ([mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py))
+## 4. MCP 통신 상세 (`mcp_client.py`)
 
 *   **Keep-Alive**: SSE 연결 유지를 위해 45초마다 `ping`을 전송하는 백그라운드 태스크 실행.
 *   **Dynamic Pydantic Model**: `create_model`을 사용하여 서버의 `inputSchema`를 런타임에 클래스로 변환. 이는 LangChain이 도구 인자를 정확히 검증하게 해줍니다.

@@ -2,6 +2,8 @@
 
 이 문서는 `mcp-ai-agent`의 핵심 경쟁력인 **극단적인 Latency 최적화 기법(Parallel Execution)**과 대규모 로깅 데이터를 안전하게 소화하는 **Sub-Agent Summarization (Map-Reduce)** 아키텍처를 분석합니다.
 
+> 이 문서는 **심화 성능/아키텍처 문서**입니다. 현재 배포 구조와 설정 키는 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)를 함께 참고하세요.
+
 ---
 
 ## 🏎️ 1. Parallel Execution (비동기 병렬 처리)

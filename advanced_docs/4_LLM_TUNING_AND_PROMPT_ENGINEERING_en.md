@@ -2,6 +2,8 @@
 
 This document is an architectural guide covering the essence of LLM Dichotomy and Prompt Engineering introduced by this system to achieve **optimal Model Performance and zero fatal Parsing Errors**.
 
+> This is an advanced model-strategy document. For the current runtime/deployment view, see [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md) and [`mcp-api-agent/NPU_QWEN3_REFERENCE.md`](../mcp-api-agent/NPU_QWEN3_REFERENCE.md).
+
 ---
 
 ## 🎭 1. The Dilemma of Model Dichotomy (Instruct vs Thinking)

@@ -5,6 +5,9 @@
 이번 장에서는 이 AI 회사가 도대체 **"어떻게 그렇게 똑똑하게 일하는지"** 그 조직도(아키텍처)를 아주 쉽게 뜯어보겠습니다! 
 단순 코드가 아니니, 한 편의 조직도를 본다고 생각하고 따라와 주세요.
 
+> 현재 운영 기준 문서는 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)와 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)입니다.  
+> 이 문서는 **개념 설명용 구조 문서**이며, 최신 설정 키와 배포 방식은 운영 문서를 함께 참고하세요.
+
 ---
 
 ## 🧠 1. 두 가지 종류의 AI 직원 (Dual LLM Strategy)

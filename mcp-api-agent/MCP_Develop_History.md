@@ -3,6 +3,9 @@
 본 문서는 LangGraph 기반 단일 에이전트에서 완전한 **Orchestrator-Workers 병렬 처리 아키텍처**로 진화하기까지의 MCP(Model Context Protocol) 개발 히스토리를 요약합니다. 
 단순히 연동하는 것을 넘어, 발생했던 여러 심각한 문제점(타임아웃, 무한 루프, 데이터 절단, 지연시간)들을 코드단에서 **어떻게(How)** 해결했고, 그 **결과(Result)**는 어떠했는지 매우 상세히 기록합니다.
 
+> 현재 운영 기준 문서는 [`DOCS_MAP.md`](DOCS_MAP.md), [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md), [`NPU_QWEN3_REFERENCE.md`](NPU_QWEN3_REFERENCE.md)입니다.  
+> 이 문서는 현재 구조의 **기술적 배경과 진화 과정**을 이해하는 용도로 읽는 것을 권장합니다.
+
 ---
 
 ## 🗺️ 전체 시스템 워크플로우 (Current Architecture)

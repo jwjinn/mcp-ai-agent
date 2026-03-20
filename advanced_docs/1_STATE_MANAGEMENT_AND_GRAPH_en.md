@@ -2,6 +2,8 @@
 
 This document is for **Senior Engineers and Core Developers**. It dives deep into how LangGraph manages State inside `agent_graph.py` and how the memory limits (Context Window) are mathematically controlled.
 
+> This is a deep-dive implementation document. For the current operational baseline, start with [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md).
+
 ---
 
 ## 🏗️ 1. Anatomy of `AgentState`

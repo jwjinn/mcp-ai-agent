@@ -24,15 +24,21 @@
 
 ---
 
-## �📖 초보자 및 기여자를 위한 완벽 가이드 (필독!)
+## 📚 문서 읽는 순서
 
-프로젝트의 전체 흐름, 병렬 처리 아키텍처 원리, 그리고 코드가 어떻게 유기적으로 동작하는지 궁금하신가요? 
-**초보자분들을 위해 아주 쉽고 친절한 동화책 같은 문서(Paper) 세트를 준비했습니다!** 아래 순서대로 읽어보시는 것을 강력히 권장합니다.
+현재 구조 기준으로 가장 먼저 볼 문서는 아래 순서입니다.
 
-👉 **[1. 배경 및 도입 목적 알아보기 (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**  
-👉 **[2. 핵심 아키텍처 원리 (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**  
-👉 **[3. 코드 투어 (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**  
-👉 **[4. 실전! 내 컴퓨터에서 돌려보기 (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
+👉 **[문서 안내 지도](mcp-api-agent/DOCS_MAP.md)**  
+👉 **[운영 배포 가이드](mcp-api-agent/DEPLOYMENT_GUIDE.md)**  
+👉 **[NPU Qwen3 실환경 레퍼런스](mcp-api-agent/NPU_QWEN3_REFERENCE.md)**  
+👉 **[로컬 실행 / API 테스트 가이드](mcp-api-agent/FastAPI_Run_Test_Guide.md)**
+
+초보자용 설명형 문서는 여전히 유효하지만, 현재 운영 배포 기준은 위 4개 문서를 우선으로 보시는 것을 권장합니다.
+
+👉 **[1. 배경 및 도입 목적 알아보기](paper/1_BACKGROUND_AND_WHY.md)**  
+👉 **[2. 핵심 아키텍처 원리](paper/2_CORE_ARCHITECTURE.md)**  
+👉 **[3. 코드 투어](paper/3_CODE_WALKTHROUGH.md)**  
+👉 **[4. 실전! 내 컴퓨터에서 돌려보기](paper/4_HOW_TO_START_AND_TEST.md)**
 
 ## ⚡ 시니어 및 코어 개발자를 위한 딥-다이브 (Advanced Docs)
 
@@ -46,17 +52,42 @@
 *   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive.md)**: 노드별 숨겨진 프롬프트 원문과 무한 루프, Truncation 보호 메커니즘 분석.
 *   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow.md)**: 실제 코드를 따라가는 완벽한 변수 추적 및 함수 콜스택 흐름도.
 
-## 🚀 배포 가이드
+## 🚀 현재 구조 한눈에 보기
 
-운영 배포 절차와 설정값의 의미를 자세히 보고 싶다면 아래 문서를 참고하세요.
+현재 버전의 핵심 구조는 아래와 같습니다.
 
-👉 **[Kubernetes 배포 가이드](mcp-api-agent/DEPLOYMENT_GUIDE.md)**
+- 공통 코드는 하나의 `master` 기준 코드베이스로 유지합니다.
+- A100 / NPU 차이는 브랜치가 아니라 `mcp-api-agent/k8s/overlays/`로 분리합니다.
+- 모델별 차이는 `INSTRUCT_CONFIG`, `THINKING_CONFIG`로 분리합니다.
+- 과거 장애 경험으로 생긴 보호값은 `RUNTIME_LIMITS`에서 관리합니다.
+- 큰 설정은 `ConfigMap(config.json)`에서 관리하고, 급한 조정은 `env`로 override할 수 있습니다.
 
 ---
 
 ## Architecture
 
 이 프로젝트는 프로덕션 환경에서 원격 Web UI 혹은 다른 서비스들과 통신하기 위한 FastAPI 기반 백엔드 애플리케이션(`mcp-api-agent/`)을 메인으로 제공합니다. 모니터링 대시보드에서 활용할 수 있는 SSE(Server-Sent Events) 스트리밍 기능과 도커(Docker)/쿠버네티스 배포를 지원합니다.
+
+### 요청이 처리되는 방식
+
+현재 요청 흐름은 아래처럼 생각하시면 가장 이해가 쉽습니다.
+
+1. FastAPI 서버가 사용자 요청을 받습니다.
+2. `Router`가 이 요청이 단순 조회인지, 종합 진단인지 판단합니다.
+3. 단순 조회면 `Instruct 모델`이 바로 도구를 호출합니다.
+4. 종합 진단이면 `Orchestrator + Workers`가 병렬로 K8s / Logs / Metrics / Traces를 조회합니다.
+5. 마지막에 `Thinking 모델`이 결과를 종합해 최종 진단을 만듭니다.
+
+### 왜 설정이 복잡한가
+
+현재 설정이 `MCP_SERVERS`, `INSTRUCT_CONFIG`, `THINKING_CONFIG`, `RUNTIME_LIMITS`로 나뉘는 이유는 각각 역할이 다르기 때문입니다.
+
+- `MCP_SERVERS`: 어디서 데이터를 가져올지
+- `INSTRUCT_CONFIG`: 빠른 분류, JSON 생성, tool calling용 모델 설정
+- `THINKING_CONFIG`: 최종 종합 진단용 모델 설정
+- `RUNTIME_LIMITS`: 토큰 폭주, context overflow, 무한 루프, 긴 raw output을 막는 보호값
+
+특히 GPU/NPU 환경에서는 모델 서버(vLLM 등)의 `max-model-len`, 응답 특성, 안정성이 다를 수 있어서 이 보호값들을 코드 안이 아니라 배포 설정에서 조정할 수 있게 두는 것이 중요합니다.
 
 ### Supported MCP Servers (지원 도구)
 에이전트는 다음과 같은 여러 개의 MCP 서버와 동적으로 연결되어 작업합니다:
@@ -73,7 +104,7 @@
 - 활용 가능한 LLM Endpoint (ex. OpenAI 호환 API 지원 모델, 커스텀 모델 등)
 
 ## Quick Start
-*(로컬 실행 튜토리얼을 더 깊게 이해하고 싶다면 `paper/4_HOW_TO_START_AND_TEST.md`를 참고하세요.)*
+*(로컬 실행과 실제 API 테스트는 `mcp-api-agent/FastAPI_Run_Test_Guide.md`를 우선 참고하세요.)*
 
 ### 1. Configuration Setup (설정 파일 구성)
 기본적인 레포지토리를 클론받은 후, 사용자의 환경에 맞게 제공된 템플릿 파일에서 IP 주소 및 API Key를 교체합니다.
@@ -98,7 +129,20 @@ pip install -r requirements_api.txt
 ```
 
 2. **설정 파일(config.json) 작성**
-미리 복사해 둔 `config.json` 파일 내의 `MCP_SERVERS` URL을 **쿠버네티스의 NodePort 주소**로 변경합니다.
+미리 복사해 둔 `config.json` 파일 내에서 다음 4개 영역을 채웁니다.
+
+- `MCP_SERVERS`
+- `INSTRUCT_CONFIG`
+- `THINKING_CONFIG`
+- `RUNTIME_LIMITS`
+
+가장 중요한 개념은 아래입니다.
+
+- `INSTRUCT_CONFIG`: 빠르게 도구를 호출하고 구조화된 응답을 만드는 모델
+- `THINKING_CONFIG`: 최종 종합 진단을 담당하는 모델
+- `RUNTIME_LIMITS`: 모델 입력 과다, 긴 로그, 큰 메트릭 응답 때문에 시스템이 터지는 것을 막는 안전장치
+
+`MCP_SERVERS` URL은 **쿠버네티스의 실제 서비스 주소 또는 접근 가능한 SSE endpoint**로 변경합니다.
 ```json
 // mcp-api-agent/config.json 수정 예시
 "MCP_SERVERS": [
@@ -113,23 +157,28 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Deploying via GHCR (Kubernetes 배포)
-실제 운영 환경이나 원격 서버에 배포할 때는 소스코드를 직접 실행하지 않고 **빌드된 공식 퍼블릭 패키지 이미지**를 이용합니다. `mcp-api-agent` 폴더 내에 변경 사항이 발생하면 GitHub Actions를 통해 자동으로 GHCR(GitHub Container Registry)에 최신 Docker 이미지가 배포됩니다.
 
-하드웨어별 배포 차이는 `mcp-api-agent/k8s/` 아래의 Kustomize overlay로 분리해 두는 것을 권장합니다.
+운영 배포는 소스 실행보다 `ghcr.io/jwjinn/mcp-api-agent:latest` 이미지를 사용하는 방식을 권장합니다.
+
+현재 권장 방식은 `base + overlays` 구조입니다.
 
 ```bash
-# A100 환경
+docker pull ghcr.io/jwjinn/mcp-api-agent:latest
+
+# A100
 kubectl apply -k mcp-api-agent/k8s/overlays/a100
 
-# NPU 환경
+# NPU
 kubectl apply -k mcp-api-agent/k8s/overlays/npu
 ```
 
-`base/`에는 공통 Deployment/Service/ConfigMap을 두고, `overlays/a100`, `overlays/npu`에서는 모델 endpoint, 헤더, 스케줄링 정책 같은 환경별 값만 덮어씁니다.
+문서 역할은 이렇게 나뉩니다.
 
-기존처럼 단일 YAML로 관리하고 싶다면 아래 예시를 참고할 수 있지만, 신규 운영 환경 추가 시에는 overlay 구조가 훨씬 관리하기 쉽습니다.
+- 실제 배포 절차: `mcp-api-agent/DEPLOYMENT_GUIDE.md`
+- NPU Qwen3 실환경 예시: `mcp-api-agent/NPU_QWEN3_REFERENCE.md`
+- Kustomize 구조 설명: `mcp-api-agent/k8s/README.md`
 
-아래 통합 배포 가이드(ConfigMap + Deployment) 매니페스트 예시는 레거시 단일 매니페스트 예시입니다.
+아래 단일 YAML 예시는 레거시 참고용입니다.
 
 ```yaml
 apiVersion: v1
@@ -212,4 +261,5 @@ kubectl apply -f manifest.yaml
 ```
 
 ---
-> 과거 개발 프로세스, 트러블슈팅 이력 및 쿠버네티스 YAML 배포에 관한 심화 내용은 `mcp-api-agent/MCP_Develop_History.md`를 참고해 주시고, 영문 문서는 `README_en.md`를 확인하세요.
+> 현재 운영 기준 문서는 `mcp-api-agent/DOCS_MAP.md`, `mcp-api-agent/DEPLOYMENT_GUIDE.md`, `mcp-api-agent/NPU_QWEN3_REFERENCE.md`입니다.  
+> `paper/`, `advanced_docs/`, `MCP_Develop_History.md`는 설명/심화/이력 문서로 보시면 됩니다.

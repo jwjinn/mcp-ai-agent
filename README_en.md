@@ -24,15 +24,21 @@ Notably, it supports a dual LLM environment: a **Thinking Model** for deep reaso
 
 ---
 
-## 📖 Comprehensive Guide for Beginners & Contributors (Must Read!)
+## 📚 Reading Order
 
-Are you new to this project? Wondering how the code works or why we chose this architecture?
-**We've prepared a highly accessible, story-like set of "Paper" documents for beginners!** We strongly recommend reading them in the following order:
+For the current production-oriented structure, start with these documents first:
 
-👉 **[1. Background and Why (BACKGROUND AND WHY)](paper/1_BACKGROUND_AND_WHY.md)**  
-👉 **[2. Core Architecture (CORE ARCHITECTURE)](paper/2_CORE_ARCHITECTURE.md)**  
-👉 **[3. Code Walkthrough (CODE WALKTHROUGH)](paper/3_CODE_WALKTHROUGH.md)**  
-👉 **[4. How to Start and Test (HOW TO START)](paper/4_HOW_TO_START_AND_TEST.md)**
+👉 **[Documentation Map](mcp-api-agent/DOCS_MAP.md)**  
+👉 **[Deployment Guide](mcp-api-agent/DEPLOYMENT_GUIDE.md)**  
+👉 **[NPU Qwen3 Reference](mcp-api-agent/NPU_QWEN3_REFERENCE.md)**  
+👉 **[FastAPI Run / API Test Guide](mcp-api-agent/FastAPI_Run_Test_Guide.md)**
+
+The beginner-friendly paper series is still useful, but the documents above are the current operational baseline.
+
+👉 **[1. Background and Why](paper/1_BACKGROUND_AND_WHY.md)**  
+👉 **[2. Core Architecture](paper/2_CORE_ARCHITECTURE.md)**  
+👉 **[3. Code Walkthrough](paper/3_CODE_WALKTHROUGH.md)**  
+👉 **[4. How to Start and Test](paper/4_HOW_TO_START_AND_TEST.md)**
 
 ## ⚡ Deep-Dive for Senior & Core Developers (Advanced Docs)
 
@@ -46,17 +52,42 @@ If you want to go beyond the tutorial and taste the essence of **LangGraph state
 *   🛠️ **[6. System Architecture & Prompts Deep-Dive](code_advanced_docs/2_system_architecture_deep_dive_en.md)**: Analysis of hidden raw prompts per node, loop prevention, and Truncation protection mechanisms.
 *   🔬 **[7. Detailed Code Execution Flow](code_advanced_docs/3_detailed_code_execution_flow_en.md)**: A perfect variable tracking and function call-stack flow chart following the actual code.
 
-## 🚀 Deployment Guide
+## 🚀 Current Structure At A Glance
 
-If you want a practical deployment guide with detailed explanations of each setting, see:
+The current version is organized around a few simple rules:
 
-👉 **[Kubernetes Deployment Guide](mcp-api-agent/DEPLOYMENT_GUIDE.md)**
+- Keep one shared codebase on `master`
+- Separate A100 / NPU differences with `mcp-api-agent/k8s/overlays/`
+- Separate model roles with `INSTRUCT_CONFIG` and `THINKING_CONFIG`
+- Keep runtime guardrails in `RUNTIME_LIMITS`
+- Store the main settings in `ConfigMap(config.json)` and use `env` only for targeted overrides
 
 ---
 
 ## Architecture
 
 This project primarily provides a FastAPI-based backend application (`mcp-api-agent/`) designed for production environments to communicate with remote Web UIs or other services. It supports Server-Sent Events (SSE) streaming for monitoring dashboards and is fully ready for Docker/Kubernetes deployment.
+
+### How A Request Flows
+
+The current request flow is easiest to understand like this:
+
+1. FastAPI receives a user request.
+2. The `Router` decides whether it is a simple lookup or a full diagnosis.
+3. For simple requests, the `Instruct` model calls tools directly.
+4. For complex requests, `Orchestrator + Workers` query K8s / Logs / Metrics / Traces in parallel.
+5. The `Thinking` model synthesizes the final diagnosis.
+
+### Why The Settings Are Split
+
+The current configuration is split because each section has a different responsibility:
+
+- `MCP_SERVERS`: where the data comes from
+- `INSTRUCT_CONFIG`: fast routing, JSON generation, and tool-calling model settings
+- `THINKING_CONFIG`: final diagnosis model settings
+- `RUNTIME_LIMITS`: guardrails against token overflow, long raw outputs, loops, and unstable prompts
+
+This matters especially in GPU/NPU environments where model-serving limits such as `max-model-len` and real runtime stability can differ across clusters.
 
 ### Supported MCP Servers
 The agent dynamically connects and operates with several MCP servers as follows:
@@ -73,7 +104,7 @@ To run the agent directly in an open-source environment, you will need:
 - An available LLM Endpoint (e.g., OpenAI-compatible API supported models, custom models, etc.)
 
 ## Quick Start
-*(If you want to understand the local setup tutorial in more depth, please read `paper/4_HOW_TO_START_AND_TEST.md`)*
+*(For the current local run and API test flow, use `mcp-api-agent/FastAPI_Run_Test_Guide.md` first.)*
 
 ### 1. Configuration Setup
 After cloning the repository, replace the IP addresses and API Keys in the provided template files to match your environment.
@@ -98,7 +129,20 @@ pip install -r requirements_api.txt
 ```
 
 2. **Configure Settings (config.json)**
-Modify the `MCP_SERVERS` URLs in your previously copied `config.json` to point to the **Kubernetes NodePort** addresses.
+Fill in these four sections in `config.json`:
+
+- `MCP_SERVERS`
+- `INSTRUCT_CONFIG`
+- `THINKING_CONFIG`
+- `RUNTIME_LIMITS`
+
+The core idea is:
+
+- `INSTRUCT_CONFIG`: the model used for fast tool usage and structured responses
+- `THINKING_CONFIG`: the model used for final synthesis and diagnosis
+- `RUNTIME_LIMITS`: the safety layer that prevents prompt explosions, oversized logs, and unstable long-context calls
+
+Point `MCP_SERVERS` to your actual reachable SSE endpoints or in-cluster service addresses.
 ```json
 // mcp-api-agent/config.json modification example
 "MCP_SERVERS": [
@@ -113,23 +157,26 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Deploying via GHCR (Kubernetes)
-For staging or production environments, avoid running from source code and use the **pre-built official public package image**. The API Agent is automatically built and pushed to GitHub Container Registry (GHCR) upon any changes to the `mcp-api-agent` directory.
 
-We recommend separating hardware-specific deployment settings with Kustomize overlays under `mcp-api-agent/k8s/`.
+For production deployment, prefer the published runtime image:
 
 ```bash
-# A100 environment
+docker pull ghcr.io/jwjinn/mcp-api-agent:latest
+
+# A100
 kubectl apply -k mcp-api-agent/k8s/overlays/a100
 
-# NPU environment
+# NPU
 kubectl apply -k mcp-api-agent/k8s/overlays/npu
 ```
 
-Keep shared Deployment/Service/ConfigMap resources in `base/`, and override only environment-specific values such as model endpoints, headers, and scheduling rules in `overlays/a100` and `overlays/npu`.
+Document roles:
 
-If you still prefer a single YAML file you can use the legacy example below, but overlays are much easier to maintain once multiple hardware targets are involved.
+- Real deployment steps: `mcp-api-agent/DEPLOYMENT_GUIDE.md`
+- Practical NPU Qwen3 example: `mcp-api-agent/NPU_QWEN3_REFERENCE.md`
+- Kustomize layout notes: `mcp-api-agent/k8s/README.md`
 
-The following comprehensive guide (ConfigMap + Deployment) is the legacy single-manifest example.
+The single-file YAML below is retained only as a legacy reference.
 
 ```yaml
 apiVersion: v1
@@ -212,4 +259,5 @@ kubectl apply -f manifest.yaml
 ```
 
 ---
-> For in-depth information regarding past development processes, troubleshooting history, and Kubernetes YAML deployment, please refer to `mcp-api-agent/MCP_Develop_History.md`.
+> The current operational baseline is `mcp-api-agent/DOCS_MAP.md`, `mcp-api-agent/DEPLOYMENT_GUIDE.md`, and `mcp-api-agent/NPU_QWEN3_REFERENCE.md`.  
+> `paper/`, `advanced_docs/`, and `MCP_Develop_History.md` are best treated as explanatory, historical, or deep-dive materials.

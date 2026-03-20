@@ -2,6 +2,8 @@
 
 이 문서는 `mcp-ai-agent`의 동작 흐름을 코드 수준에서 하나씩 설명합니다. 이 프로젝트는 **Model Context Protocol (MCP)**을 통해 다양한 모니터링 및 인프라 도구를 통합하고, **LangGraph**를 사용하여 복합적인 추론을 수행하는 AIOps 에이전트입니다.
 
+> 이 문서는 코드 중심 심화 문서입니다. 현재 문서 진입점은 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)를 기준으로 보세요.
+
 ## 1. 전체 실행 흐름 (Overview)
 
 사용자의 질문이 입력되면 시스템은 다음과 같은 단계를 거쳐 답변을 생성합니다.
@@ -26,14 +28,14 @@ graph TD
 
 ## 2. 진입점 및 초기화 (Entry Points)
 
-### 🚀 [main.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/main.py) & [api_server.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/api_server.py)
-*   **MCP 연결**: `MCPClient`([mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py))를 통해 `config.json`에 정의된 서버들에 연결합니다.
+### 🚀 `main.py` & `api_server.py`
+*   **MCP 연결**: `MCPClient`를 통해 `config.json`에 정의된 서버들에 연결합니다.
 *   **도구 로드**: 각 서버에서 사용 가능한 도구들을 가져와 LangChain의 `StructuredTool` 형태로 변환합니다. 이때 서버 이름을 접두사(예: `k8s_`, `vlogs_`)로 붙여 충돌을 방지합니다.
-*   **에이전트 조립**: 로드된 모든 도구를 `create_agent_app(all_tools)`([agent_graph.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/agent_graph.py))에 전달하여 두뇌(LangGraph)를 구성합니다.
+*   **에이전트 조립**: 로드된 모든 도구를 `create_agent_app(all_tools)`(`agent_graph.py`)에 전달하여 두뇌(LangGraph)를 구성합니다.
 
 ---
 
-## 3. 핵심 로직: [agent_graph.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/agent_graph.py)
+## 3. 핵심 로직: `agent_graph.py`
 
 에이전트의 논리적 흐름은 LangGraph의 `StateGraph`로 정의되어 있습니다.
 
@@ -63,7 +65,7 @@ graph TD
 
 ## 4. MCP 클라이언트 어댑터
 
-### 🔌 [mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py)
+### 🔌 `mcp_client.py`
 MCP 서버와의 통신을 담당합니다.
 *   **SSE 연결**: HTTP 기반의 Server-Sent Events를 사용하여 서버와 실시간으로 통신합니다.
 *   **Dynamic Schema**: 서버에서 보내준 JSON Schema를 바탕으로 Pydantic 모델을 동적으로 생성하여 LangChain 도구로 변환합니다.
@@ -73,7 +75,7 @@ MCP 서버와의 통신을 담당합니다.
 
 ## 5. 모니터링 및 스트리밍
 
-### 📊 [api_server.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/api_server.py)
+### 📊 `api_server.py`
 *   **OpenAI 호환성**: OpenWebUI 같은 클라이언트에서 사용할 수 있도록 `/v1/chat/completions` 엔드포인트를 제공합니다.
 *   **실시간 진행 과정**: 에이전트가 생각하는 과정(`EVENT:`, `TOKEN:`, `FINAL:`)을 스트리밍 큐(`stream_queue`)를 통해 사용자에게 즉시 보여줍니다. 특히 OpenWebUI에서는 `<think>` 태그를 활용하여 내부 추론 과정을 시각화합니다.
 

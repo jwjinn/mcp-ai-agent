@@ -2,6 +2,9 @@
 
 이 문서는 이 프로젝트를 **처음 접하는 개발자**가 코드를 읽기 전에, **"우리가 왜 이런 복잡한 프로그램을 만들게 되었는지"**를 아주 쉽게 이해할 수 있도록 돕기 위해 작성되었습니다. 코드 한 줄 한 줄보다는 **맥락(Context)**을 파악하는 데 집중해 주세요!
 
+> 현재 운영 기준 문서는 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)와 [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md)입니다.  
+> 이 문서는 **배경 설명용**이며, 최신 배포/설정 절차는 운영 문서를 우선 기준으로 보세요.
+
 ---
 
 ## 🧐 1. AIOps 에이전트란 무엇인가요?

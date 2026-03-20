@@ -2,6 +2,8 @@
 
 This document explains the operational flow of `mcp-ai-agent` step-by-step at the code level. This project is an AIOps agent that integrates various monitoring and infrastructure tools via the **Model Context Protocol (MCP)** and performs complex reasoning using **LangGraph**.
 
+> This is a code-focused deep-dive document. For the current document entry point, start with [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md).
+
 ## 1. Overall Execution Flow (Overview)
 
 When a user's question is input, the system generates an answer through the following steps.
@@ -26,14 +28,14 @@ graph TD
 
 ## 2. Entry Points & Initialization
 
-### 🚀 [main.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/main.py) & [api_server.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/api_server.py)
-*   **MCP Connection**: Connects to the servers defined in `config.json` via `MCPClient` ([mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py)).
+### 🚀 `main.py` & `api_server.py`
+*   **MCP Connection**: Connects to the servers defined in `config.json` via `MCPClient` (`mcp_client.py`).
 *   **Tool Loading**: Fetches the available tools from each server and converts them into LangChain's `StructuredTool` format. At this time, it adds the server name as a prefix (e.g., `k8s_`, `vlogs_`) to prevent collisions.
-*   **Agent Assembly**: Passes all loaded tools to `create_agent_app(all_tools)` ([agent_graph.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/agent_graph.py)) to construct the brain (LangGraph).
+*   **Agent Assembly**: Passes all loaded tools to `create_agent_app(all_tools)` (`agent_graph.py`) to construct the brain (LangGraph).
 
 ---
 
-## 3. Core Logic: [agent_graph.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/agent_graph.py)
+## 3. Core Logic: `agent_graph.py`
 
 The agent's logical flow is defined with LangGraph's `StateGraph`.
 
@@ -63,7 +65,7 @@ Uses a specialized, divided structure for advanced diagnosis.
 
 ## 4. MCP Client Adapter
 
-### 🔌 [mcp_client.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/mcp_client.py)
+### 🔌 `mcp_client.py`
 Responsible for communication with MCP servers.
 *   **SSE Connection**: Communicates with the server in real-time using HTTP-based Server-Sent Events.
 *   **Dynamic Schema**: Dynamically generates Pydantic models based on the JSON Schema sent from the server to convert them into LangChain tools.
@@ -73,7 +75,7 @@ Responsible for communication with MCP servers.
 
 ## 5. Monitoring & Streaming
 
-### 📊 [api_server.py](file:///c:/Users/jwjin/Desktop/개발/mcp-ai-agent/mcp-api-agent/api_server.py)
+### 📊 `api_server.py`
 *   **OpenAI Compatibility**: Provides a `/v1/chat/completions` endpoint for use with clients like OpenWebUI.
 *   **Real-time Progress**: Immediately shows the user the agent's thinking process (`EVENT:`, `TOKEN:`, `FINAL:`) via a streaming queue (`stream_queue`). Especially in OpenWebUI, it uses the `<think>` tag to visualize the internal reasoning process.
 

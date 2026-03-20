@@ -2,6 +2,8 @@
 
 This document analyzes the core competitive edges of the `mcp-ai-agent`: the **Extreme Latency Optimization Technique (Parallel Execution)** and the **Sub-Agent Summarization (Map-Reduce)** architecture to safely digest large-scale logging data.
 
+> This is an advanced architecture/performance document. For current deployment and runtime settings, see [`mcp-api-agent/DEPLOYMENT_GUIDE.md`](../mcp-api-agent/DEPLOYMENT_GUIDE.md).
+
 ---
 
 ## 🏎️ 1. Parallel Execution (Asynchronous Parallel Processing)

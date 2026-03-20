@@ -2,6 +2,8 @@
 
 This document is an advanced guide covering how one of the powerful features of Core Python—**Runtime Metaprogramming**—is utilized in `mcp_client.py` to cast the tools of Model Context Protocol (MCP) servers into LangChain schemas.
 
+> This is an advanced internal implementation document. For the current operational entry point, see [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md).
+
 ---
 
 ## 🎭 1. Dynamic Schema Builder (Metaprogramming)

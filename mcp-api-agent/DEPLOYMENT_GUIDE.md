@@ -52,7 +52,7 @@ Kubernetes 배포 시 이 프로젝트는 아래 리소스를 사용합니다.
 - 몇 개의 replica를 띄울지
 - ConfigMap을 어디에 마운트할지
 - 어떤 환경변수를 넘길지
-- 어떤 노드(A100/NPU)에 스케줄할지
+- 필요하다면 어떤 노드나 런타임에 스케줄할지
 
 ### Service
 
@@ -61,7 +61,7 @@ Kubernetes 배포 시 이 프로젝트는 아래 리소스를 사용합니다.
 기본 예시는 `ClusterIP`입니다.
 
 - 내부 UI나 다른 서비스만 붙으면 `ClusterIP`
-- 외부에서 직접 열어야 하면 `NodePort` 또는 `LoadBalancer`
+- 외부에서 직접 열어야 하면 `NodePort`, `LoadBalancer`, 또는 `Ingress`
 
 ---
 
@@ -114,6 +114,10 @@ mcp-api-agent/k8s/
 - `overlays/npu/`: NPU 환경에서만 다른 값
 
 즉 코드 분기가 아니라 배포 설정 분기입니다.
+
+실제 NPU vLLM 환경에 맞춘 구체적인 추천값이 필요하면 아래 레퍼런스를 함께 보세요.
+
+👉 **[NPU Qwen3 실환경 레퍼런스](NPU_QWEN3_REFERENCE.md)**
 
 ---
 
@@ -307,7 +311,7 @@ kubectl apply -k mcp-api-agent/k8s/overlays/a100
 
 - NPU 모델 endpoint
 - NPU에 맞는 `max_input_tokens`, `max_output_tokens`
-- NPU 노드 라벨
+- 필요하다면 NPU 관련 스케줄링 정책
 
 배포:
 

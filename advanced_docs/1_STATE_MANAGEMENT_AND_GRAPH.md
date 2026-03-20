@@ -2,6 +2,8 @@
 
 이 문서는 `agent_graph.py` 내부에서 LangGraph가 어떻게 상태(State)를 관리하고, 메모리 한계(Context Window)를 어떻게 수학적으로 제어하는지 파고드는 **시니어 엔지니어 및 코어 개발자**를 위한 문서입니다.
 
+> 이 문서는 **심화 내부 구현 문서**입니다. 현재 운영 기준과 문서 진입점은 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)를 참고하세요.
+
 ---
 
 ## 🏗️ 1. AgentState의 해부학 (Anatomy of `AgentState`)

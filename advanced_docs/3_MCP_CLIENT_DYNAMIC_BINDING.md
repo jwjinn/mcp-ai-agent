@@ -2,6 +2,8 @@
 
 이 문서는 코어 파이썬(Core Python)의 강력 기능 중 하나인 **런타임 메타프로그래밍(Runtime Metaprogramming)** 기법이 `mcp_client.py`에서 Model Context Protocol(MCP) 서버의 도구(Tool)들을 어떻게 LangChain의 스키마로 형변환(Casting)하는지 다루는 고급 문서입니다.
 
+> 이 문서는 **MCP 클라이언트 내부 구현 심화 문서**입니다. 현재 운영 문서 진입점은 [`mcp-api-agent/DOCS_MAP.md`](../mcp-api-agent/DOCS_MAP.md)입니다.
+
 ---
 
 ## 🎭 1. Dynamic Schema Builder (메타프로그래밍)
