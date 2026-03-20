@@ -399,6 +399,13 @@ async def simple_agent_node(state: AgentState, tools):
     # [최적화] 중복 호출 필터링 (무한 루프 방지)
     # 동일한 입력값으로 연속 호출 시 차단하고 사용자에게 알림
     final_response = check_and_filter_duplicate_tools(state["messages"], response)
+    if isinstance(final_response, AIMessage) and not final_response.tool_calls:
+        preview = final_response.content
+        if len(preview) > 1000:
+            preview = preview[:1000] + "\n... (후략)"
+        logger.info(f"✅ [Simple] 최종 응답:\n{preview}")
+        from config import stream_queue
+        await stream_queue.put("EVENT:✅ [Simple] 최종 응답 생성 완료")
     return {"messages": [final_response]}
 
 async def orchestrator_node(state: AgentState):
