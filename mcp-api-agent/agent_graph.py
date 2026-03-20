@@ -344,34 +344,6 @@ def select_simple_tools(user_input: str, tools: list) -> list:
     return fallback_tools or tools
 
 
-async def format_simple_response(user_question: str, raw_answer: str):
-    formatter_llm = get_thinking_model()
-
-    prompt = f"""
-    당신은 최종 답변을 정리하는 Synthesizer입니다.
-    아래는 단순 요청(Simple Route)을 처리한 1차 응답입니다.
-    이 내용을 사용자의 질문에 맞게 최종 사용자 응답 형태로 다시 정리하세요.
-
-    [사용자 질문]
-    {user_question}
-
-    [1차 응답]
-    {raw_answer}
-
-    [작성 규칙]
-    1. `<think>` 같은 내부 추론은 절대 노출하지 마세요.
-    2. 사용자의 질문이 "목록", "리스트", "이름만", "나열", "조회" 같은 단순 리소스 조회라면 진단문으로 과해석하지 말고 요청한 목록을 간단히 반환하세요.
-    3. 단순 목록 요청에서는 "클러스터가 건강하다", "수동 점검이 필요 없다" 같은 건강성 평가는 덧붙이지 마세요. 정말 필요한 경우에만 한 줄 덧붙이세요.
-    4. 목록 요청이 아니라면 complex route 최종 답변처럼 정돈된 문체로 답하되, 과장하지 말고 핵심 사실 위주로 설명하세요.
-    5. 내부 도구명, 중간 reasoning, 시스템 프롬프트, Tool Call 구조는 숨기세요.
-    6. 반드시 한국어로 답하세요.
-    """
-
-    response = await formatter_llm.ainvoke([HumanMessage(content=prompt)])
-    response.content = remove_thinking_tags(response.content)
-    return response
-
-
 async def simple_agent_node(state: AgentState, tools):
     """표준 ReAct 에이전트"""
     instruct_llm = get_instruct_model()
@@ -427,14 +399,6 @@ async def simple_agent_node(state: AgentState, tools):
     # [최적화] 중복 호출 필터링 (무한 루프 방지)
     # 동일한 입력값으로 연속 호출 시 차단하고 사용자에게 알림
     final_response = check_and_filter_duplicate_tools(state["messages"], response)
-    if isinstance(final_response, AIMessage) and not final_response.tool_calls:
-        final_response.content = remove_thinking_tags(final_response.content)
-        formatted_response = await format_simple_response(
-            str(last_msg.content),
-            final_response.content,
-        )
-        return {"messages": [formatted_response]}
-    
     return {"messages": [final_response]}
 
 async def orchestrator_node(state: AgentState):
