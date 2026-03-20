@@ -427,7 +427,7 @@ async def simple_agent_node(state: AgentState, tools):
     # [최적화] 중복 호출 필터링 (무한 루프 방지)
     # 동일한 입력값으로 연속 호출 시 차단하고 사용자에게 알림
     final_response = check_and_filter_duplicate_tools(state["messages"], response)
-    if isinstance(final_response, AIMessage):
+    if isinstance(final_response, AIMessage) and not final_response.tool_calls:
         final_response.content = remove_thinking_tags(final_response.content)
         formatted_response = await format_simple_response(
             str(last_msg.content),
