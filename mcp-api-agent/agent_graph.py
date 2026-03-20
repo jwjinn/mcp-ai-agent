@@ -466,6 +466,13 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
         
     logger.info(f"👷 [{worker_name}] 시작: {instruction}")
     from config import stream_queue
+    worker_node_map = {
+        "K8sSpecialist": "worker_k8s",
+        "MetricSpecialist": "worker_metric",
+        "LogSpecialist": "worker_log",
+    }
+    worker_node_id = worker_node_map.get(worker_name, "agent")
+    await stream_queue.put(f'STATUS:{{"nodeId":"{worker_node_id}","status":"running"}}')
     await stream_queue.put(f"EVENT:👷 [{worker_name}] 시작: {instruction}")
     
     # Worker는 빠르고 정확한 Instruct 모델 사용
@@ -663,14 +670,17 @@ async def run_single_worker(worker_name: str, instruction: str, tools: list):
             total_time = int(time.time() - start_time)
             msg_done = f"✅ `[{worker_name}]` 도구 결과 요약 완료! (총 {total_time}초 소요)"
             logger.info(msg_done)
+            await stream_queue.put(f'STATUS:{{"nodeId":"{worker_node_id}","status":"success"}}')
             await stream_queue.put(msg_done)
             
             final_report = f"[{worker_name}] 집중 분석 결과:\n" + summary_response.content
             return final_report
         else:
+            await stream_queue.put(f'STATUS:{{"nodeId":"{worker_node_id}","status":"success"}}')
             return f"[{worker_name}] 집중 분석 결과: (도구 호출 없이 답변) {response.content}"
             
     except Exception as e:
+        await stream_queue.put(f'STATUS:{{"nodeId":"{worker_node_id}","status":"error","error":{json.dumps(str(e), ensure_ascii=False)}}}')
         return f"[{worker_name}] 에러 발생: {e}"
 
 async def workers_node(state: AgentState, tools: list):
@@ -731,6 +741,7 @@ async def synthesizer_node(state: AgentState):
     # 스트리밍 끔 (안정성)
     thinking_llm = get_thinking_model(stream_prefix="📝 [Synthesizing]")
     from config import stream_queue
+    await stream_queue.put('STATUS:{"nodeId":"synthesizer","status":"running"}')
     await stream_queue.put("EVENT:📝 [Synthesizer] 최종 종합 시작")
     
     # [최적화] 진단 우선순위 재정렬 및 균등 배분(Fair Share)

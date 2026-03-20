@@ -177,8 +177,10 @@ async def react_flow_stream_endpoint(request: Request):
         graph_task = None
         synthesizer_started = False
         simple_path = False
+        graph_failed = False
         
         async def run_graph():
+            nonlocal synthesizer_started, simple_path, graph_failed
             try:
                 for chunk in make_all_idle_chunks():
                     await stream_queue.put(chunk)
@@ -212,8 +214,10 @@ async def react_flow_stream_endpoint(request: Request):
                                 await stream_queue.put(make_text_chunk(msg))
                             
             except Exception as e:
+                graph_failed = True
                 logger.error(f"❌ [Graph] 실행 중 오류 발생: {e}")
-                await stream_queue.put(make_data_status("router", "error", error=str(e)))
+                await stream_queue.put(make_data_status("agent", "error", error=str(e)))
+                await stream_queue.put(make_data_status("end", "error", error=str(e)))
             finally:
                 await stream_queue.put("EOF")
 
@@ -242,7 +246,7 @@ async def react_flow_stream_endpoint(request: Request):
             if msg == "EOF":
                 if token_buffer:
                     yield make_text_chunk(token_buffer)
-                if not simple_path:
+                if not simple_path and not graph_failed:
                     if synthesizer_started:
                         yield make_data_status("synthesizer", "success")
                     yield make_data_status("agent", "success")
@@ -271,6 +275,17 @@ async def react_flow_stream_endpoint(request: Request):
                     yield make_data_status("end", "success")
                     yield make_text_chunk(text)
 
+            elif msg.startswith("STATUS:"):
+                try:
+                    status_obj = json.loads(msg.replace("STATUS:", "", 1))
+                    yield make_data_status(
+                        status_obj["nodeId"],
+                        status_obj["status"],
+                        error=status_obj.get("error"),
+                    )
+                except Exception as status_parse_error:
+                    logger.warning(f"⚠️ [API] STATUS 이벤트 파싱 실패: {status_parse_error}")
+
             else:
                 if msg.startswith("EVENT:"):
                     action_text = msg.replace("EVENT:", "", 1).strip()
@@ -285,14 +300,6 @@ async def react_flow_stream_endpoint(request: Request):
                     elif "synthesizer" in action_text.lower():
                         target_node = "synthesizer"
                         
-                    # Tool completion usually has '완료' or '결과' in Korean logs
-                    if "완료" in action_text or "결과" in action_text:
-                        yield make_data_status(target_node, "success")
-                        if target_node == "synthesizer":
-                            yield make_data_status("end", "success")
-                    else:
-                        yield make_data_status(target_node, "running")
-                    
                     yield make_text_chunk(f"[과정] {action_text}\n")
 
     return StreamingResponse(
