@@ -232,6 +232,30 @@ def trim_text_to_token_limit(text: str, max_tokens: int, model_name: str, suffix
         return text
     return text[:max_chars].rstrip() + suffix
 
+
+def is_listing_request(text: str) -> bool:
+    normalized = (text or "").lower().strip()
+    listing_keywords = [
+        "목록", "리스트", "보여줘", "나열", "조회", "줄래",
+        "list", "show", "display",
+    ]
+    resource_keywords = [
+        "namespace", "namespaces", "네임스페이스",
+        "pod", "pods", "파드",
+        "service", "services", "svc", "서비스",
+        "deployment", "deployments", "디플로이먼트",
+        "node", "nodes", "노드",
+    ]
+    diagnosis_keywords = [
+        "왜", "원인", "진단", "분석", "이상", "문제", "에러", "오류", "상태 어때",
+        "why", "diagnose", "analysis", "error", "issue", "problem",
+    ]
+
+    has_listing = any(keyword in normalized for keyword in listing_keywords)
+    has_resource = any(keyword in normalized for keyword in resource_keywords)
+    has_diagnosis = any(keyword in normalized for keyword in diagnosis_keywords)
+    return has_listing and has_resource and not has_diagnosis
+
 async def router_node(state: AgentState):
     """
     [Router] Instruct 모델이 사용자 질문을 분석하여 모드를 결정합니다.
@@ -245,12 +269,19 @@ async def router_node(state: AgentState):
         state["messages"], keep_last=RUNTIME_LIMITS["router_keep_last"]
     )
     last_msg = safe_messages[-1]
+
+    if is_listing_request(str(last_msg.content)):
+        logger.info("🧭 [Router] 규칙 기반 분류: 목록/나열 요청으로 판단하여 SIMPLE 경로 선택")
+        return {"mode": "simple"}
     
     prompt = f"""
     당신은 사용자 의도를 분류하는 AI입니다.
     사용자의 질문이 다음 중 어디에 해당하는지 단답형으로 대답하세요.
     
-    1. "SIMPLE": 특정 단일 리소스의 단순 조회 또는 단일 도구로 즉시 답변 가능한 경우 (예: aaa 파드 목록 줘, 현재 시간 알려줘, 클러스터 CPU 상위 3개 파드 알려줘)
+    1. "SIMPLE": 특정 단일 리소스의 단순 조회 또는 단일 도구로 즉시 답변 가능한 경우
+       - 예: aaa 파드 목록 줘, 현재 시간 알려줘, 클러스터 CPU 상위 3개 파드 알려줘
+       - 예: 네임스페이스 목록 보여줘, 서비스 목록 보여줘, 디플로이먼트 이름만 나열해줘
+       - "목록", "이름만", "나열", "조회"처럼 단순 리소스 목록을 요구하는 요청은 기본적으로 SIMPLE입니다.
     2. "COMPLEX": 복합적인 추론이 필요하거나, 원인 분석(Diagnosis), 에러(Error) 해결, 여러 단계의 도구 사용이 필요한 경우. 특히 "전반적으로 진단해줘" 와 같은 포괄적 분석 요청은 COMPLEX로 분류하되, "전체 클러스터에서 CPU 점유율 상위 3개 알려줘"와 같이 단순히 랭킹/통계만 묻는 경우에는 단일 도구(`vm_query`)로 즉시 조회가 가능하므로 "SIMPLE"로 분류하세요.
     
     [사용자 질문]
@@ -755,6 +786,8 @@ async def synthesizer_node(state: AgentState):
     [작성 규칙]
     1. 각 전문가의 분석 결과를 인용하여 논리적으로 설명하세요.
     2. 결과를 바탕으로 원인을 진단하고, 해결책을 제안하세요.
+    2-1. 단, 사용자의 질문이 "목록", "리스트", "이름만", "나열", "조회" 같은 단순 리소스 조회라면 진단문으로 과해석하지 말고 요청한 목록을 간단히 반환하세요.
+    2-2. 단순 목록 요청에서는 "클러스터가 건강하다", "수동 점검이 필요 없다" 같은 건강성 평가를 덧붙이지 마세요. 정말 필요한 경우에만 한 줄 덧붙이세요.
     3. **핵심 분석 룰**: 도구 실행 결과가 "[빈 결과 반환...]" 형태로 왔다면, 절대 권한 부족이나 통신 장애로 오해하지 마세요! 오류 필터(예: Failed 파드 제한)에 걸리는 안 좋은 리소스가 아예 없어서 클러스터가 매우 건강하다는 뜻입니다. 이를 분석하여 사용자에게 "에러 파드가 하나도 없이 건강하다"고 보고하세요.
     4. **추가 건강성 룰**: K8s 전문의 보고서가 단순히 파드 이름 목록(`pod/xxx`, `deployment/yyy` 등)만 나열하고 특별한 에러 메시지(CrashLoopBackOff, Pending, Failed 등)가 없다면, 그 리소스들은 정상적으로 띄워져 있는 것(Running)으로 확신하고 설명하세요. "상태를 명확히 알 수 없다"고 애매하게 답변하지 마세요.
     5. 결과에 실제 에러 문구(Unauthorized, Connection Refused 등)나 알 수 없는 크래시 흔적이 있을 때만 수동 점검을 제안하세요.
@@ -775,6 +808,8 @@ async def synthesizer_node(state: AgentState):
     [작성 규칙]
     1. 각 전문가의 분석 결과를 인용하여 논리적으로 설명하세요.
     2. 결과를 바탕으로 원인을 진단하고, 해결책을 제안하세요.
+    2-1. 단, 사용자의 질문이 "목록", "리스트", "이름만", "나열", "조회" 같은 단순 리소스 조회라면 진단문으로 과해석하지 말고 요청한 목록을 간단히 반환하세요.
+    2-2. 단순 목록 요청에서는 "클러스터가 건강하다", "수동 점검이 필요 없다" 같은 건강성 평가를 덧붙이지 마세요. 정말 필요한 경우에만 한 줄 덧붙이세요.
     3. **핵심 분석 룰**: 도구 실행 결과가 "[빈 결과 반환...]" 형태로 왔다면, 절대 권한 부족이나 통신 장애로 오해하지 마세요! 오류 필터(예: Failed 파드 제한)에 걸리는 안 좋은 리소스가 아예 없어서 클러스터가 매우 건강하다는 뜻입니다. 이를 분석하여 사용자에게 "에러 파드가 하나도 없이 건강하다"고 보고하세요.
     4. **추가 건강성 룰**: K8s 전문의 보고서가 단순히 파드 이름 목록(`pod/xxx`, `deployment/yyy` 등)만 나열하고 특별한 에러 메시지(CrashLoopBackOff, Pending, Failed 등)가 없다면, 그 리소스들은 정상적으로 띄워져 있는 것(Running)으로 확신하고 설명하세요. "상태를 명확히 알 수 없다"고 애매하게 답변하지 마세요.
     5. 결과에 실제 에러 문구(Unauthorized, Connection Refused 등)나 알 수 없는 크래시 흔적이 있을 때만 수동 점검을 제안하세요.
@@ -806,6 +841,8 @@ async def synthesizer_node(state: AgentState):
     [작성 규칙]
     1. 각 전문가의 분석 결과를 인용하여 논리적으로 설명하세요.
     2. 결과를 바탕으로 원인을 진단하고, 해결책을 제안하세요.
+    2-1. 단, 사용자의 질문이 "목록", "리스트", "이름만", "나열", "조회" 같은 단순 리소스 조회라면 진단문으로 과해석하지 말고 요청한 목록을 간단히 반환하세요.
+    2-2. 단순 목록 요청에서는 "클러스터가 건강하다", "수동 점검이 필요 없다" 같은 건강성 평가를 덧붙이지 마세요. 정말 필요한 경우에만 한 줄 덧붙이세요.
     3. **핵심 분석 룰**: 도구 실행 결과가 "[빈 결과 반환...]" 형태로 왔다면, 절대 권한 부족이나 통신 장애로 오해하지 마세요! 오류 필터(예: Failed 파드 제한)에 걸리는 안 좋은 리소스가 아예 없어서 클러스터가 매우 건강하다는 뜻입니다. 이를 분석하여 사용자에게 "에러 파드가 하나도 없이 건강하다"고 보고하세요.
     4. **추가 건강성 룰**: K8s 전문의 보고서가 단순히 파드 이름 목록(`pod/xxx`, `deployment/yyy` 등)만 나열하고 특별한 에러 메시지(CrashLoopBackOff, Pending, Failed 등)가 없다면, 그 리소스들은 정상적으로 띄워져 있는 것(Running)으로 확신하고 설명하세요. "상태를 명확히 알 수 없다"고 애매하게 답변하지 마세요.
     5. 결과에 실제 에러 문구(Unauthorized, Connection Refused 등)나 알 수 없는 크래시 흔적이 있을 때만 수동 점검을 제안하세요.
