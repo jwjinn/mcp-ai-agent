@@ -19,6 +19,33 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.tools = []
         self._ping_task = None
+        self._disconnect_logged = False
+
+    def _is_reconnectable_error(self, error: Exception) -> bool:
+        error_str = (str(error) or repr(error)).lower()
+        reconnect_markers = [
+            "closedresourceerror",
+            "closed resource",
+            "connection closed",
+            "stream closed",
+            "session is closed",
+            "broken resource",
+            "readerror",
+            "writeerror",
+            "remoteprotocolerror",
+            "connecterror",
+            "transport is closed",
+            "client is closed",
+            "peer closed connection",
+        ]
+        return any(marker in error_str for marker in reconnect_markers)
+
+    async def _reconnect(self):
+        logger.warning(f"🔄 [{self.name}] MCP 세션이 끊겨 재연결을 시도합니다.")
+        await self.cleanup()
+        self.exit_stack = AsyncExitStack()
+        self.session = None
+        await self.connect(purpose="runtime reconnect", retries=1)
 
     async def _keepalive(self):
         """서버와의 연결 유지를 위한 주기적인 핑 전송 (SSE Idle Timeout 방지)"""
@@ -27,34 +54,50 @@ class MCPClient:
             if self.session:
                 try:
                     await self.session.send_ping()
+                    self._disconnect_logged = False
                 except Exception as e:
-                    # 핑 실패는 무시 (연결이 끊어졌다면 메인 흐름에서 에러 처리됨)
-                    pass
+                    if not self._disconnect_logged:
+                        error_str = str(e) or repr(e)
+                        logger.warning(f"⚠️ [{self.name}] Keepalive ping 실패 감지: {error_str}")
+                        self._disconnect_logged = True
 
-    async def connect(self):
+    async def connect(self, purpose: str = "startup", retries: int = 1):
         """MCP 서버에 연결"""
-        logger.info(f"🔌 [{self.name}] 서버 연결 시도: {self.server_url} ...")
-        try:
-            # 1시간(3600초)의 넉넉한 SSE 읽기 타임아웃
-            transport = await self.exit_stack.enter_async_context(
-                sse_client(self.server_url, sse_read_timeout=3600)
-            )
-            # mcp 1.2.x 버전 호환성: transport[0], transport[1] 사용
-            self.session = await self.exit_stack.enter_async_context(
-                ClientSession(transport[0], transport[1])
-            )
-            await self.session.initialize()
-            logger.info(f"✅ [{self.name}] 연결 성공!")
-            
-            # 연결 성공 후 Keep-Alive Task 시작
-            self._ping_task = asyncio.create_task(self._keepalive())
-            
-            await self.refresh_tools()
-            
-        except Exception as e:
-            logger.error(f"❌ [{self.name}] 연결 실패: {e}")
-            await self.cleanup()
-            raise e
+        for attempt in range(retries + 1):
+            if attempt == 0:
+                logger.info(f"🔌 [{self.name}] 서버 연결 시도({purpose}): {self.server_url} ...")
+            else:
+                logger.warning(f"🔁 [{self.name}] 서버 연결 재시도({purpose}) {attempt}/{retries}: {self.server_url}")
+
+            try:
+                # 1시간(3600초)의 넉넉한 SSE 읽기 타임아웃
+                transport = await self.exit_stack.enter_async_context(
+                    sse_client(self.server_url, sse_read_timeout=3600)
+                )
+                # mcp 1.2.x 버전 호환성: transport[0], transport[1] 사용
+                self.session = await self.exit_stack.enter_async_context(
+                    ClientSession(transport[0], transport[1])
+                )
+                await self.session.initialize()
+                self._disconnect_logged = False
+                logger.info(f"✅ [{self.name}] 연결 성공! ({purpose})")
+
+                # 연결 성공 후 Keep-Alive Task 시작
+                self._ping_task = asyncio.create_task(self._keepalive())
+
+                await self.refresh_tools()
+                return
+
+            except Exception as e:
+                error_str = str(e) or repr(e)
+                logger.error(f"❌ [{self.name}] 연결 실패({purpose}): {error_str}")
+                await self.cleanup()
+                if attempt < retries:
+                    await asyncio.sleep(1)
+                    self.exit_stack = AsyncExitStack()
+                    self.session = None
+                    continue
+                raise e
 
     async def refresh_tools(self):
         """도구 목록을 가져와서 Namespace를 적용하여 변환"""
@@ -110,37 +153,52 @@ class MCPClient:
     async def call_mcp_tool(self, name: str, arguments: dict) -> str:
         """도구 실행"""
         logger.debug(f"🚀 [{self.name}] Tool Call: {name} (Args: {arguments})")
-        try:
-            result: CallToolResult = await self.session.call_tool(name, arguments)
-            
-            output_text = []
-            if result.content:
-                for content in result.content:
-                    if content.type == "text":
-                        output_text.append(content.text)
-            
-            final_output = "\n".join(output_text)
-            
-            # [최적화] Tool Output Truncation (토큰 폭탄 및 LLM 뻗음 방지)
-            # 50,000자는 너무 길어 LLM이 느려지거나 컨텍스트 한계로 에러(Crash)를 유발합니다.
-            # 속도 최적화 및 안정성을 위해 10,000자(약 3,000토큰)로 제한합니다.
-            max_output_length = RUNTIME_LIMITS["mcp_tool_max_output_chars"]
-            if len(final_output) > max_output_length:
-                final_output = final_output[:max_output_length] + \
-                    f"\n... (⚠️ Output truncated by {len(final_output) - max_output_length} chars. Use specific filters to see more.)"
-                logger.warning(f"✂️ [{self.name}] Truncation: 결과가 너무 길어 잘랐습니다. ({len(final_output)} chars)")
+        for attempt in range(2):
+            try:
+                if not self.session:
+                    await self._reconnect()
 
-            # [변경] 디버깅을 위해 결과의 앞부분을 보여줌
-            preview = final_output[:200].replace("\n", " ") + "..." if len(final_output) > 200 else final_output.replace("\n", " ")
-            logger.debug(f"✅ [{self.name}] 성공 (Return: {preview})")
-            return final_output
-        except Exception as e:
-            error_str = str(e) or repr(e)
-            if "ENOBUFS" in error_str:
-                return "❌ [System Limit] ENOBUFS: 데이터가 너무 많습니다. 범위를 좁히세요."
-            
-            logger.error(f"❌ [{self.name}] Error: {error_str}")
-            return f"Error executing {name}: {error_str}"
+                result: CallToolResult = await self.session.call_tool(name, arguments)
+
+                output_text = []
+                if result.content:
+                    for content in result.content:
+                        if content.type == "text":
+                            output_text.append(content.text)
+
+                final_output = "\n".join(output_text)
+
+                # [최적화] Tool Output Truncation (토큰 폭탄 및 LLM 뻗음 방지)
+                # 50,000자는 너무 길어 LLM이 느려지거나 컨텍스트 한계로 에러(Crash)를 유발합니다.
+                # 속도 최적화 및 안정성을 위해 10,000자(약 3,000토큰)로 제한합니다.
+                max_output_length = RUNTIME_LIMITS["mcp_tool_max_output_chars"]
+                if len(final_output) > max_output_length:
+                    final_output = final_output[:max_output_length] + \
+                        f"\n... (⚠️ Output truncated by {len(final_output) - max_output_length} chars. Use specific filters to see more.)"
+                    logger.warning(f"✂️ [{self.name}] Truncation: 결과가 너무 길어 잘랐습니다. ({len(final_output)} chars)")
+
+                # [변경] 디버깅을 위해 결과의 앞부분을 보여줌
+                preview = final_output[:200].replace("\n", " ") + "..." if len(final_output) > 200 else final_output.replace("\n", " ")
+                logger.debug(f"✅ [{self.name}] 성공 (Return: {preview})")
+                return final_output
+            except Exception as e:
+                error_str = str(e) or repr(e)
+                if "ENOBUFS" in error_str:
+                    return "❌ [System Limit] ENOBUFS: 데이터가 너무 많습니다. 범위를 좁히세요."
+
+                if attempt == 0 and self._is_reconnectable_error(e):
+                    logger.warning(f"⚠️ [{self.name}] 연결 끊김 감지: {error_str}. 1회 재연결 후 재시도합니다.")
+                    try:
+                        await self._reconnect()
+                        logger.info(f"✅ [{self.name}] 재연결 성공. Tool Call 재시도: {name}")
+                        continue
+                    except Exception as reconnect_error:
+                        reconnect_str = str(reconnect_error) or repr(reconnect_error)
+                        logger.error(f"❌ [{self.name}] 재연결 실패: {reconnect_str}")
+                        return f"Error executing {name}: reconnect failed: {reconnect_str}"
+
+                logger.error(f"❌ [{self.name}] Error: {error_str}")
+                return f"Error executing {name}: {error_str}"
 
     async def cleanup(self):
         """자원 정리: 오류 발생 시 무시하고 안전하게 종료"""
@@ -161,3 +219,6 @@ class MCPClient:
                 logger.warning(f"⚠️ [{self.name}] Cleanup Warning: {e}")
         except Exception as e:
             logger.error(f"⚠️ [{self.name}] Cleanup Error: {e}")
+        finally:
+            self.session = None
+            self._ping_task = None
